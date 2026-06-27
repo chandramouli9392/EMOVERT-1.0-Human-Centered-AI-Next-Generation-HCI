@@ -8,7 +8,6 @@ passlib[bcrypt]==1.7.4
 python-multipart==0.0.17
 pydantic==2.9.2
 pydantic-settings==2.6.1
-opencv-python==4.10.0.84
 mediapipe==0.10.18
 deepface==0.0.93
 fer==22.5.1
