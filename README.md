@@ -164,7 +164,7 @@ RELIABLE RESULT?
 
 ---
 
-# 🎙️ 2. Voice Fallback
+# 🎙️ 2. Voice Fallback (main)
 
 When visual interaction is unsuccessful, EMOVERT can transition to a voice interaction layer.
 
