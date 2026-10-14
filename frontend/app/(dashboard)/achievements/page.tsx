@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { achievementAPI } from "@/lib/api";
+import { parseServerDate } from "@/lib/utils";
 
 const categories = ["All", "Session", "Focus", "Emotion", "Productivity", "Mindfulness", "Streak"];
 
@@ -72,7 +73,7 @@ export default function AchievementsPage() {
             description: ach.description,
             icon,
             unlocked: ach.unlocked,
-            unlockedAt: ach.unlocked_at ? new Date(ach.unlocked_at).toLocaleDateString() : undefined,
+            unlockedAt: ach.unlocked_at ? parseServerDate(ach.unlocked_at).toLocaleDateString() : undefined,
             category,
             color,
             progress,

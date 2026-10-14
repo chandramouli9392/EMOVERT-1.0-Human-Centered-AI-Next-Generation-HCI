@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { useEmovertStore } from "@/hooks/useStore";
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -20,7 +20,6 @@ import {
   Activity,
   ArrowRight,
   Play,
-  Pause,
   Shield,
   Sparkles,
 } from "lucide-react";
@@ -39,50 +38,8 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { getEmotionColor, getEmotionIcon, getFocusCategory, formatDuration } from "@/lib/utils";
-import { analyticsAPI, emotionAPI, focusAPI } from "@/lib/api";
-
-const defaultEmotionDistribution = [
-  { name: "Happy", value: 36, color: "#22c55e" },
-  { name: "Neutral", value: 25, color: "#6b7280" },
-  { name: "Sad", value: 15, color: "#3b82f6" },
-  { name: "Angry", value: 12, color: "#ef4444" },
-  { name: "Others", value: 12, color: "#a855f7" },
-];
-
-const defaultFocusTrend = [
-  { time: "8AM", score: 85 },
-  { time: "10AM", score: 92 },
-  { time: "12PM", score: 78 },
-  { time: "2PM", score: 65 },
-  { time: "4PM", score: 72 },
-  { time: "6PM", score: 88 },
-  { time: "8PM", score: 75 },
-];
-
-const defaultRecentEmotions = [
-  { emotion: "happy", confidence: 0.94, time: "2 min ago" },
-  { emotion: "focused", confidence: 0.87, time: "5 min ago" },
-  { emotion: "neutral", confidence: 0.91, time: "8 min ago" },
-  { emotion: "stress", confidence: 0.72, time: "12 min ago" },
-];
-
-const defaultInsights = [
-  "You are happiest between 8 AM and 11 AM",
-  "You focus best during morning study sessions",
-  "Exercise days correlate with happier emotions",
-  "Your stress is lowest after meditation",
-];
-
-const defaultEmotionData = [
-  { name: "Mon", happy: 4, neutral: 3, sad: 1, stress: 0 },
-  { name: "Tue", happy: 3, neutral: 4, sad: 0, stress: 1 },
-  { name: "Wed", happy: 5, neutral: 2, sad: 0, stress: 0 },
-  { name: "Thu", happy: 2, neutral: 3, sad: 2, stress: 1 },
-  { name: "Fri", happy: 4, neutral: 2, sad: 1, stress: 0 },
-  { name: "Sat", happy: 6, neutral: 1, sad: 0, stress: 0 },
-  { name: "Sun", happy: 5, neutral: 2, sad: 0, stress: 0 },
-];
+import { getEmotionIcon, getEmotionColor, getFocusCategory, formatDuration, formatTimeAgo } from "@/lib/utils";
+import { analyticsAPI, emotionAPI, focusAPI, coachAPI } from "@/lib/api";
 
 export default function DashboardPage() {
   const {
@@ -90,8 +47,6 @@ export default function DashboardPage() {
     currentEmotion,
     focusScore,
     sessionDuration,
-    isSessionActive,
-    isPaused,
     privacyMode,
     streak,
     eqScore,
@@ -109,19 +64,34 @@ export default function DashboardPage() {
   const [focusTrend, setFocusTrend] = useState<any[]>([]);
   const [emotionDistribution, setEmotionDistribution] = useState<any[]>([]);
   const [weeklyEmotionTimeline, setWeeklyEmotionTimeline] = useState<any[]>([]);
-  const [insights, setInsights] = useState<string[]>(defaultInsights);
+  const [insights, setInsights] = useState<string[]>([]);
+  const [currentClock, setCurrentClock] = useState<string>("");
+
+  useEffect(() => {
+    const updateClock = () => {
+      const now = new Date();
+      setCurrentClock(now.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }));
+    };
+    updateClock();
+    const timer = setInterval(updateClock, 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     // 1. Fetch dashboard stats
     analyticsAPI.getDashboard()
       .then((res) => {
         const stats = res.data;
-        setFocusScore(stats.average_focus || 78);
-        setStreak(stats.streak || 0);
-        setEqScore(stats.eq_score || 72);
-        setDrowsinessEvents(stats.total_drowsiness_events || 0);
-        setDistractionCount(stats.total_distraction_events || 0);
-        setSessionDuration(stats.total_focus_hours * 3600); // Set total focus hours converted to seconds
+        if (stats) {
+          setFocusScore(Math.round(stats.average_focus || 0));
+          setStreak(stats.streak || 0);
+          setEqScore(Math.round(stats.eq_score || 0));
+          setDrowsinessEvents(stats.total_drowsiness_events || 0);
+          setDistractionCount(stats.total_distraction_events || 0);
+          // Prefer exact seconds in total_focus_duration, fallback to total_focus_hours * 3600
+          const exactSec = stats.total_focus_duration ?? Math.round((stats.total_focus_hours || 0) * 3600);
+          setSessionDuration(exactSec);
+        }
       })
       .catch((err) => console.error("Failed to load dashboard statistics:", err));
 
@@ -131,46 +101,37 @@ export default function DashboardPage() {
         const history = res.data || [];
         if (history.length > 0) {
           const formatted = history.slice(0, 5).map((log: any) => {
-            const date = new Date(log.timestamp);
-            const diffMin = Math.max(1, Math.round((Date.now() - date.getTime()) / 60000));
             return {
               emotion: log.emotion,
               confidence: log.confidence,
-              time: `${diffMin} min ago`
+              time: formatTimeAgo(log.timestamp),
             };
           });
           setRecentEmotions(formatted);
 
-          // Compute emotion distribution dynamically from history
+          // Compute emotion distribution dynamically from real DB history
           const counts: Record<string, number> = {};
           history.forEach((log: any) => {
             counts[log.emotion] = (counts[log.emotion] || 0) + 1;
           });
           const total = history.length;
           const dist = Object.keys(counts).map((emotion) => {
-            let color = "#a855f7"; // default
-            if (emotion === "happy") color = "#22c55e";
-            else if (emotion === "neutral") color = "#6b7280";
-            else if (emotion === "sad") color = "#3b82f6";
-            else if (emotion === "stress" || emotion === "angry") color = "#ef4444";
-            else if (emotion === "focused") color = "#06b6d4";
-
             return {
               name: emotion.charAt(0).toUpperCase() + emotion.slice(1),
               value: Math.round((counts[emotion] / total) * 100),
-              color
+              color: getEmotionColor(emotion)
             };
           });
           setEmotionDistribution(dist);
         } else {
-          setRecentEmotions(defaultRecentEmotions);
-          setEmotionDistribution(defaultEmotionDistribution);
+          setRecentEmotions([]);
+          setEmotionDistribution([]);
         }
       })
       .catch((err) => {
         console.error("Failed to fetch emotion history:", err);
-        setRecentEmotions(defaultRecentEmotions);
-        setEmotionDistribution(defaultEmotionDistribution);
+        setRecentEmotions([]);
+        setEmotionDistribution([]);
       });
 
     // 3. Fetch focus trends
@@ -184,12 +145,12 @@ export default function DashboardPage() {
           }));
           setFocusTrend(formatted);
         } else {
-          setFocusTrend(defaultFocusTrend);
+          setFocusTrend([]);
         }
       })
       .catch((err) => {
         console.error("Failed to fetch focus trends:", err);
-        setFocusTrend(defaultFocusTrend);
+        setFocusTrend([]);
       });
 
     // 4. Fetch weekly trends
@@ -210,16 +171,36 @@ export default function DashboardPage() {
           });
           setWeeklyEmotionTimeline(timeline);
         } else {
-          setWeeklyEmotionTimeline(defaultEmotionData);
+          setWeeklyEmotionTimeline([]);
         }
       })
       .catch((err) => {
         console.error("Failed to fetch weekly trends:", err);
-        setWeeklyEmotionTimeline(defaultEmotionData);
+        setWeeklyEmotionTimeline([]);
       });
+
+    // 5. Fetch AI Coach insights
+    coachAPI.getInsights()
+      .then((res) => {
+        const list = (res.data || []).map((ins: any) => ins.message || ins.title);
+        if (list.length > 0) {
+          setInsights(list);
+        } else {
+          coachAPI.getDailyReport()
+            .then((dRes) => {
+              if (dRes.data?.insights && dRes.data.insights.length > 0) {
+                setInsights(dRes.data.insights);
+              } else {
+                setInsights([]);
+              }
+            })
+            .catch(() => setInsights([]));
+        }
+      })
+      .catch(() => setInsights([]));
   }, [setFocusScore, setStreak, setEqScore, setDrowsinessEvents, setDistractionCount, setSessionDuration]);
 
-  const focusCategory = getFocusCategory(focusScore || 78);
+  const focusCategory = getFocusCategory(focusScore || 0);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 space-y-6">
@@ -236,10 +217,16 @@ export default function DashboardPage() {
             <span className="gradient-text">{user?.name || "User"}</span>
           </h1>
           <p className="text-white/50 mt-1">
-            Here&apos;s your emotional intelligence overview
+            Here&apos;s your live emotional intelligence overview
           </p>
         </div>
         <div className="flex items-center gap-3">
+          {currentClock && (
+            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/5 border border-white/10 text-xs text-white/80 font-mono shadow-inner">
+              <Clock className="w-3.5 h-3.5 text-emovert-cyan animate-pulse" />
+              <span>{currentClock}</span>
+            </div>
+          )}
           {privacyMode && (
             <Badge variant="destructive" className="gap-1">
               <Shield className="w-3 h-3" />
@@ -261,34 +248,30 @@ export default function DashboardPage() {
           {
             icon: Target,
             label: "Focus Score",
-            value: `${focusScore || 78}`,
+            value: `${Math.round(focusScore)}`,
             subtext: focusCategory.label,
             color: focusCategory.color,
-            trend: "+12%",
           },
           {
             icon: Brain,
             label: "EQ Score",
-            value: `${eqScore || 72}`,
-            subtext: "Growing",
+            value: `${Math.round(eqScore)}`,
+            subtext: eqScore > 0 ? "Active" : "No sessions yet",
             color: "#a855f7",
-            trend: "+5%",
           },
           {
             icon: Flame,
             label: "Streak",
-            value: `${streak || 12}`,
-            subtext: "Days",
+            value: `${streak}`,
+            subtext: streak === 1 ? "Day" : "Days",
             color: "#f97316",
-            trend: "🔥",
           },
           {
             icon: Clock,
             label: "Session Time",
-            value: formatDuration(sessionDuration || 2847),
-            subtext: "Today",
+            value: formatDuration(sessionDuration || 0),
+            subtext: "Total Logged",
             color: "#00f0ff",
-            trend: "",
           },
         ].map((stat, index) => (
           <motion.div
@@ -304,11 +287,6 @@ export default function DashboardPage() {
                     className="w-5 h-5"
                     style={{ color: stat.color }}
                   />
-                  {stat.trend && (
-                    <span className="text-xs text-emovert-green">
-                      {stat.trend}
-                    </span>
-                  )}
                 </div>
                 <div className="text-2xl font-bold text-white">
                   {stat.value}
@@ -344,56 +322,78 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-6">
-                <motion.div
-                  className="text-6xl mb-4"
-                  animate={{ scale: [1, 1.1, 1] }}
-                  transition={{ duration: 2, repeat: Infinity }}
-                >
-                  {getEmotionIcon(currentEmotion?.emotion || "happy")}
-                </motion.div>
-                <h3 className="text-2xl font-bold capitalize text-white mb-2">
-                  {currentEmotion?.emotion || "Happy"}
-                </h3>
-                <Badge
-                  variant="glow"
-                  className="mb-4"
-                >
-                  Confidence: {Math.round((currentEmotion?.confidence || 0.94) * 100)}%
-                </Badge>
-                <Progress
-                  value={(currentEmotion?.confidence || 0.94) * 100}
-                  indicatorColor="bg-emovert-cyan"
-                  className="mt-4"
-                />
-              </div>
+              {currentEmotion ? (
+                <div className="text-center py-6">
+                  <motion.div
+                    className="text-6xl mb-4"
+                    animate={{ scale: [1, 1.1, 1] }}
+                    transition={{ duration: 2, repeat: Infinity }}
+                  >
+                    {getEmotionIcon(currentEmotion.emotion)}
+                  </motion.div>
+                  <h3 className="text-2xl font-bold capitalize text-white mb-2">
+                    {currentEmotion.emotion}
+                  </h3>
+                  <Badge variant="glow" className="mb-4">
+                    Confidence: {Math.round(currentEmotion.confidence * 100)}%
+                  </Badge>
+                  <Progress
+                    value={currentEmotion.confidence * 100}
+                    indicatorColor="bg-emovert-cyan"
+                    className="mt-4"
+                  />
+                </div>
+              ) : (
+                <div className="text-center py-8 px-4 rounded-xl bg-white/5 border border-white/5 my-2">
+                  <div className="w-14 h-14 rounded-full bg-emovert-cyan/10 flex items-center justify-center mx-auto mb-3">
+                    <Brain className="w-7 h-7 text-emovert-cyan/70" />
+                  </div>
+                  <h3 className="text-lg font-semibold text-white">No Active Session</h3>
+                  <p className="text-xs text-white/40 mt-1 mb-4">
+                    Start a live webcam session to detect your real-time emotions.
+                  </p>
+                  <Link href="/session">
+                    <Button size="sm" className="glow-cyan gap-2">
+                      <Play className="w-3.5 h-3.5" />
+                      Start Sensing
+                    </Button>
+                  </Link>
+                </div>
+              )}
+
               <div className="space-y-2 mt-4">
                 <h4 className="text-sm font-medium text-white/70">
                   Recent Emotions
                 </h4>
-                {recentEmotions.map((item, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5"
-                  >
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">
-                        {getEmotionIcon(item.emotion)}
-                      </span>
-                      <span className="text-sm capitalize text-white/70">
-                        {item.emotion}
-                      </span>
+                {recentEmotions.length > 0 ? (
+                  recentEmotions.map((item, i) => (
+                    <div
+                      key={i}
+                      className="flex items-center justify-between py-2 px-3 rounded-lg bg-white/5"
+                    >
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">
+                          {getEmotionIcon(item.emotion)}
+                        </span>
+                        <span className="text-sm capitalize text-white/70">
+                          {item.emotion}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs text-white/40">
+                          {Math.round(item.confidence * 100)}%
+                        </span>
+                        <span className="text-xs text-white/30">
+                          {item.time}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-xs text-white/40">
-                        {Math.round(item.confidence * 100)}%
-                      </span>
-                      <span className="text-xs text-white/30">
-                        {item.time}
-                      </span>
-                    </div>
+                  ))
+                ) : (
+                  <div className="text-center py-4 text-xs text-white/30 bg-white/5 rounded-lg">
+                    No emotions logged yet.
                   </div>
-                ))}
+                )}
               </div>
             </CardContent>
           </Card>
@@ -420,11 +420,11 @@ export default function DashboardPage() {
                     className="text-lg font-bold"
                     style={{ color: focusCategory.color }}
                   >
-                    {focusScore || 78}/100
+                    {Math.round(focusScore)}/100
                   </span>
                 </div>
                 <Progress
-                  value={focusScore || 78}
+                  value={focusScore}
                   indicatorColor={`bg-[${focusCategory.color}]`}
                   className="h-3"
                 />
@@ -432,7 +432,7 @@ export default function DashboardPage() {
                   <div className="glass rounded-lg p-3 text-center">
                     <AlertTriangle className="w-5 h-5 text-emovert-orange mx-auto mb-1" />
                     <div className="text-xl font-bold text-white">
-                      {distractionCount || 3}
+                      {distractionCount}
                     </div>
                     <div className="text-xs text-white/40">
                       Distractions
@@ -441,46 +441,55 @@ export default function DashboardPage() {
                   <div className="glass rounded-lg p-3 text-center">
                     <Zap className="w-5 h-5 text-emovert-yellow mx-auto mb-1" />
                     <div className="text-xl font-bold text-white">
-                      {drowsinessEvents || 1}
+                      {drowsinessEvents}
                     </div>
                     <div className="text-xs text-white/40">
                       Drowsiness
                     </div>
                   </div>
                 </div>
-                <div className="h-40 mt-4">
-                  <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={focusTrend}>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                      <XAxis
-                        dataKey="time"
-                        stroke="rgba(255,255,255,0.2)"
-                        fontSize={12}
-                      />
-                      <YAxis
-                        stroke="rgba(255,255,255,0.2)"
-                        fontSize={12}
-                        domain={[0, 100]}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "rgba(10,10,15,0.95)",
-                          border: "1px solid rgba(0,240,255,0.2)",
-                          borderRadius: "8px",
-                          color: "#fff",
-                        }}
-                      />
-                      <Line
-                        type="monotone"
-                        dataKey="score"
-                        stroke="#a855f7"
-                        strokeWidth={2}
-                        dot={{ fill: "#a855f7", r: 4 }}
-                        activeDot={{ r: 6, fill: "#a855f7" }}
-                      />
-                    </LineChart>
-                  </ResponsiveContainer>
-                </div>
+
+                {focusTrend.length > 0 ? (
+                  <div className="h-40 mt-4">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <LineChart data={focusTrend}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                        <XAxis
+                          dataKey="time"
+                          stroke="rgba(255,255,255,0.2)"
+                          fontSize={12}
+                        />
+                        <YAxis
+                          stroke="rgba(255,255,255,0.2)"
+                          fontSize={12}
+                          domain={[0, 100]}
+                        />
+                        <Tooltip
+                          contentStyle={{
+                            background: "rgba(10,10,15,0.95)",
+                            border: "1px solid rgba(0,240,255,0.2)",
+                            borderRadius: "8px",
+                            color: "#fff",
+                          }}
+                        />
+                        <Line
+                          type="monotone"
+                          dataKey="score"
+                          stroke="#a855f7"
+                          strokeWidth={2}
+                          dot={{ fill: "#a855f7", r: 4 }}
+                          activeDot={{ r: 6, fill: "#a855f7" }}
+                        />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <div className="h-40 flex flex-col items-center justify-center text-center p-4 rounded-xl bg-white/5 border border-white/5 mt-4">
+                    <Eye className="w-6 h-6 text-emovert-purple/40 mb-1" />
+                    <p className="text-xs text-white/60">No focus trends yet</p>
+                    <p className="text-[10px] text-white/30">Complete focus sessions to view trends</p>
+                  </div>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -500,54 +509,64 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-48">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={emotionDistribution}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={50}
-                      outerRadius={80}
-                      paddingAngle={4}
-                      dataKey="value"
-                    >
-                      {emotionDistribution.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{
-                        background: "rgba(10,10,15,0.95)",
-                        border: "1px solid rgba(0,240,255,0.2)",
-                        borderRadius: "8px",
-                        color: "#fff",
-                      }}
-                    />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-              <div className="space-y-2 mt-4">
-                {emotionDistribution.map((item) => (
-                  <div
-                    key={item.name}
-                    className="flex items-center justify-between"
-                  >
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="w-3 h-3 rounded-full"
-                        style={{ backgroundColor: item.color }}
-                      />
-                      <span className="text-sm text-white/70">
-                        {item.name}
-                      </span>
-                    </div>
-                    <span className="text-sm font-medium text-white">
-                      {item.value}%
-                    </span>
+              {emotionDistribution.length > 0 ? (
+                <>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={emotionDistribution}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={50}
+                          outerRadius={80}
+                          paddingAngle={4}
+                          dataKey="value"
+                        >
+                          {emotionDistribution.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            background: "rgba(10,10,15,0.95)",
+                            border: "1px solid rgba(0,240,255,0.2)",
+                            borderRadius: "8px",
+                            color: "#fff",
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
                   </div>
-                ))}
-              </div>
+                  <div className="space-y-2 mt-4">
+                    {emotionDistribution.map((item) => (
+                      <div
+                        key={item.name}
+                        className="flex items-center justify-between"
+                      >
+                        <div className="flex items-center gap-2">
+                          <div
+                            className="w-3 h-3 rounded-full"
+                            style={{ backgroundColor: item.color }}
+                          />
+                          <span className="text-sm text-white/70">
+                            {item.name}
+                          </span>
+                        </div>
+                        <span className="text-sm font-medium text-white">
+                          {item.value}%
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <div className="h-56 flex flex-col items-center justify-center text-center p-4 rounded-xl bg-white/5 border border-white/5">
+                  <Activity className="w-8 h-8 text-emovert-pink/40 mb-2" />
+                  <p className="text-sm text-white/60 font-medium">No emotion data yet</p>
+                  <p className="text-xs text-white/30 mt-1">Run webcam sessions to see your live emotional balance</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -568,35 +587,43 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="h-64">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={weeklyEmotionTimeline}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                    <XAxis
-                      dataKey="name"
-                      stroke="rgba(255,255,255,0.2)"
-                      fontSize={12}
-                    />
-                    <YAxis
-                      stroke="rgba(255,255,255,0.2)"
-                      fontSize={12}
-                    />
-                    <Tooltip
-                      contentStyle={{
-                        background: "rgba(10,10,15,0.95)",
-                        border: "1px solid rgba(0,240,255,0.2)",
-                        borderRadius: "8px",
-                        color: "#fff",
-                      }}
-                    />
-                    <Bar dataKey="happy" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="neutral" fill="#6b7280" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="focused" fill="#06b6d4" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="sad" fill="#3b82f6" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="stress" fill="#ef4444" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              {weeklyEmotionTimeline.length > 0 && weeklyEmotionTimeline.some((d) => d.happy || d.neutral || d.focused || d.sad || d.stress) ? (
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={weeklyEmotionTimeline}>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
+                      <XAxis
+                        dataKey="name"
+                        stroke="rgba(255,255,255,0.2)"
+                        fontSize={12}
+                      />
+                      <YAxis
+                        stroke="rgba(255,255,255,0.2)"
+                        fontSize={12}
+                      />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(10,10,15,0.95)",
+                          border: "1px solid rgba(0,240,255,0.2)",
+                          borderRadius: "8px",
+                          color: "#fff",
+                        }}
+                      />
+                      <Bar dataKey="happy" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="neutral" fill="#6b7280" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="focused" fill="#06b6d4" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="sad" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                      <Bar dataKey="stress" fill="#ef4444" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              ) : (
+                <div className="h-64 flex flex-col items-center justify-center text-center p-6 rounded-xl bg-white/5 border border-white/5">
+                  <TrendingUp className="w-8 h-8 text-emovert-green/40 mb-2" />
+                  <p className="text-sm text-white/60 font-medium">No sessions logged this week</p>
+                  <p className="text-xs text-white/30 mt-1">Start daily sessions to track your weekly emotional patterns</p>
+                </div>
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -614,22 +641,32 @@ export default function DashboardPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                {insights.map((insight, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: 0.7 + index * 0.1 }}
-                    className="flex items-start gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/[0.07] transition-colors"
-                  >
-                    <div className="w-6 h-6 rounded-full bg-emovert-cyan/20 flex items-center justify-center shrink-0 mt-0.5">
-                      <Sparkles className="w-3 h-3 text-emovert-cyan" />
-                    </div>
-                    <p className="text-sm text-white/70">{insight}</p>
-                  </motion.div>
-                ))}
-              </div>
+              {insights.length > 0 ? (
+                <div className="space-y-3">
+                  {insights.map((insight, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.7 + index * 0.1 }}
+                      className="flex items-start gap-3 p-3 rounded-lg bg-white/5 hover:bg-white/[0.07] transition-colors"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-emovert-cyan/20 flex items-center justify-center shrink-0 mt-0.5">
+                        <Sparkles className="w-3 h-3 text-emovert-cyan" />
+                      </div>
+                      <p className="text-sm text-white/70">{insight}</p>
+                    </motion.div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-6 rounded-xl bg-white/5 border border-white/5 text-center">
+                  <Sparkles className="w-8 h-8 text-emovert-cyan/40 mx-auto mb-2" />
+                  <p className="text-sm text-white/70 font-medium">AI Coaching will activate on your first session</p>
+                  <p className="text-xs text-white/30 mt-1">
+                    EMI analyzes your focus and facial expressions to deliver personalized feedback.
+                  </p>
+                </div>
+              )}
               <Link href="/coach">
                 <Button variant="outline" className="w-full mt-4 gap-2">
                   View Full Insights

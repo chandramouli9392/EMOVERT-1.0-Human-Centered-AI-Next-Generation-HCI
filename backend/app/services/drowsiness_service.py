@@ -10,16 +10,22 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from datetime import datetime
 
-try:
-    import mediapipe as mp
-    MEDIAPIPE_AVAILABLE = True
-except ImportError:
-    MEDIAPIPE_AVAILABLE = False
+import os
+
+ENABLE_HEAVY_AI = os.getenv("ENABLE_HEAVY_AI", "false").lower() == "true"
+MEDIAPIPE_AVAILABLE = False
+
+if ENABLE_HEAVY_AI:
+    try:
+        import mediapipe as mp
+        MEDIAPIPE_AVAILABLE = True
+    except Exception:
+        pass
 
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except Exception:
     CV2_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -39,6 +45,8 @@ class DrowsinessDetector:
 
     def __init__(self):
         self._face_mesh = None
+        self._face_cascade = None
+        self._eye_cascade = None
         self._init_model()
         self._frame_counter = 0
         self._drowsy_frame_count = 0
@@ -48,9 +56,16 @@ class DrowsinessDetector:
         self._drowsiness_score = 0.0
 
     def _init_model(self):
-        """Initialize MediaPipe FaceMesh."""
+        """Initialize MediaPipe FaceMesh and OpenCV cascades."""
+        if CV2_AVAILABLE and self._face_cascade is None:
+            try:
+                self._face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                self._eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+                logger.info("OpenCV cascades initialized for DrowsinessDetector")
+            except Exception as e:
+                logger.warning(f"OpenCV cascades init failed: {e}")
+
         if not MEDIAPIPE_AVAILABLE:
-            logger.warning("MediaPipe not available - drowsiness detection disabled")
             return
 
         try:
@@ -101,6 +116,8 @@ class DrowsinessDetector:
             Dict with keys: is_drowsy, ear, severity, score, eyes_closed
         """
         if self._face_mesh is None:
+            if CV2_AVAILABLE and self._face_cascade is not None:
+                return self._detect_drowsiness_with_opencv(frame)
             return self._fallback_result()
 
         try:
@@ -108,6 +125,8 @@ class DrowsinessDetector:
             results = self._face_mesh.process(rgb)
 
             if not results.multi_face_landmarks:
+                if CV2_AVAILABLE and self._face_cascade is not None:
+                    return self._detect_drowsiness_with_opencv(frame)
                 return {
                     "is_drowsy": False,
                     "ear": 1.0,
@@ -196,7 +215,62 @@ class DrowsinessDetector:
         self._event_log.clear()
         self._current_ear = 1.0
         self._is_drowsy = False
-        self._drowsiness_score = 0.0
+    def _detect_drowsiness_with_opencv(self, frame: np.ndarray) -> Dict:
+        """Detect live drowsiness based on eye closure in OpenCV."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
+            faces = self._face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(60, 60))
+
+            if len(faces) == 0:
+                return {
+                    "is_drowsy": False,
+                    "ear": 0.3,
+                    "severity": "none",
+                    "score": 0.0,
+                    "eyes_closed": False,
+                    "face_detected": False,
+                }
+
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+            roi_upper = gray[y + int(h * 0.15):y + int(h * 0.58), x:x + w]
+            eyes = self._eye_cascade.detectMultiScale(roi_upper, scaleFactor=1.15, minNeighbors=4, minSize=(16, 16))
+
+            if len(eyes) == 0:
+                # Eyes closed / blinking
+                self._drowsy_frame_count += 1
+                if self._drowsy_frame_count >= 2:
+                    severity = "high" if self._drowsy_frame_count >= 4 else "medium"
+                    score = min(100.0, 50.0 + self._drowsy_frame_count * 12.0)
+                    return {
+                        "is_drowsy": True,
+                        "ear": 0.14,
+                        "severity": severity,
+                        "score": round(score, 1),
+                        "eyes_closed": True,
+                        "face_detected": True,
+                    }
+                else:
+                    return {
+                        "is_drowsy": False,
+                        "ear": 0.19,
+                        "severity": "low",
+                        "score": 25.0,
+                        "eyes_closed": True,
+                        "face_detected": True,
+                    }
+            else:
+                self._drowsy_frame_count = max(0, self._drowsy_frame_count - 1)
+                return {
+                    "is_drowsy": False,
+                    "ear": 0.35,
+                    "severity": "none",
+                    "score": 0.0,
+                    "eyes_closed": False,
+                    "face_detected": True,
+                }
+        except Exception as e:
+            logger.warning(f"OpenCV drowsiness detection failed: {e}")
+            return self._fallback_result()
 
     def _fallback_result(self) -> Dict:
         """Fallback result when detection unavailable."""

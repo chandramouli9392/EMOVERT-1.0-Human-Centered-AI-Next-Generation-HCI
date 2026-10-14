@@ -23,8 +23,10 @@ import {
   PersonStanding,
   Loader2,
 } from "lucide-react";
-import { formatDuration, getEmotionColor, getEmotionIcon } from "@/lib/utils";
+import { formatDuration, formatTimer, getEmotionColor, getEmotionIcon } from "@/lib/utils";
 import { sessionAPI, focusAPI, emotionAPI } from "@/lib/api";
+import { useMultimodalSession } from "@/hooks/useMultimodalSession";
+import { MultimodalSessionInterface } from "@/components/multimodal/MultimodalSessionInterface";
 
 interface DetectionResult {
   emotion: string;
@@ -48,6 +50,7 @@ export default function SessionPage() {
   const [showPersonAlert, setShowPersonAlert] = useState(false);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const detectionIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isDetectingRef = useRef(false);
 
   const {
     privacyMode,
@@ -62,76 +65,105 @@ export default function SessionPage() {
     addEmotion,
   } = useEmovertStore();
 
-  // Run real-time detection using backend API
-  const runRealDetection = useCallback(async () => {
-    if (!webcamRef.current) return;
-    const imageData = webcamRef.current.getScreenshot();
-    if (!imageData) return;
-
-    try {
-      const [focusRes, emotionRes] = await Promise.all([
-        focusAPI.analyze(imageData),
-        emotionAPI.detect(imageData)
-      ]);
-
-      const fData = focusRes.data;
-      const eData = emotionRes.data;
-
-      const result: DetectionResult = {
-        emotion: eData.emotion,
-        confidence: eData.confidence,
-        focus: fData.focus_score,
-        attention: fData.attention_score,
-        drowsiness: fData.drowsiness.score,
-        personDetected: fData.distraction.type !== "away",
-        distracted: fData.distraction.is_distracted,
-      };
-
-      setDetectionResult(result);
-      setFocusScore(fData.focus_score);
-      setAttentionScore(fData.attention_score);
-      setDrowsinessScore(fData.drowsiness.score);
-
-      // Set current emotion and log it
+  const multimodal = useMultimodalSession({
+    sessionId: sessionRef.current?.id,
+    onEmotionConfirmed: (affectState) => {
       const emotionObj = {
         id: Date.now().toString(),
         userId: "user",
-        emotion: eData.emotion,
-        confidence: eData.confidence,
-        timestamp: new Date().toISOString(),
+        emotion: affectState.emotion,
+        confidence: affectState.confidence,
+        timestamp: affectState.timestamp,
         sessionId: sessionRef.current?.id ? String(sessionRef.current.id) : "session",
       };
       setCurrentEmotion(emotionObj);
       addEmotion(emotionObj);
+    },
+  });
+
+  // Run fast real-time detection using backend API
+  const runRealDetection = useCallback(async () => {
+    if (!webcamRef.current || isDetectingRef.current) return;
+    const imageData = webcamRef.current.getScreenshot();
+    if (!imageData) {
+      if (isActive && (multimodal.state === "IDLE" || multimodal.state === "CHECKING_VISUAL_INPUT")) {
+        multimodal.triggerVoiceFallback("Camera stream is not providing image frames.");
+      }
+      return;
+    }
+
+    isDetectingRef.current = true;
+    try {
+      const [focusSettled, emotionSettled] = await Promise.allSettled([
+        focusAPI.analyze(imageData),
+        emotionAPI.detect(imageData, sessionRef.current?.id)
+      ]);
+
+      const fData = focusSettled.status === "fulfilled" ? focusSettled.value?.data : null;
+      const eData = emotionSettled.status === "fulfilled" ? emotionSettled.value?.data : null;
+      if (!fData && !eData) {
+        if (isActive && (multimodal.state === "IDLE" || multimodal.state === "CHECKING_VISUAL_INPUT")) {
+          multimodal.triggerVoiceFallback("Vision service temporarily unresponsive.");
+        }
+        return;
+      }
+
+      const result: DetectionResult = {
+        emotion: eData?.emotion || "neutral",
+        confidence: eData?.confidence || 0.8,
+        focus: fData?.focus_score ?? 80,
+        attention: fData?.attention_score ?? 80,
+        drowsiness: fData?.drowsiness?.score ?? 0,
+        personDetected: fData ? fData.distraction?.type !== "away" : true,
+        distracted: Boolean(fData?.distraction?.is_distracted),
+      };
+
+      setDetectionResult(result);
+      if (fData?.focus_score !== undefined) setFocusScore(fData.focus_score);
+      if (fData?.attention_score !== undefined) setAttentionScore(fData.attention_score);
+      if (fData?.drowsiness?.score !== undefined) setDrowsinessScore(fData.drowsiness.score);
+
+      // Connect visual estimation to multimodal confirmation
+      if (eData?.emotion) {
+        if (multimodal.state === "IDLE" || multimodal.state === "CHECKING_VISUAL_INPUT" || multimodal.state === "PRESENCE_DETECTED") {
+          multimodal.handleVisualInputAvailable(eData.emotion, eData.confidence || 0.85);
+        }
+      } else if (fData?.distraction?.type === "away") {
+        if (multimodal.state === "IDLE" || multimodal.state === "CHECKING_VISUAL_INPUT") {
+          multimodal.triggerVoiceFallback("User not detected in visual frame.");
+        }
+      }
 
       // Check alerts
-      if (fData.drowsiness.is_drowsy && !showDrowsinessAlert) {
+      if (fData?.drowsiness?.is_drowsy && !showDrowsinessAlert) {
         setShowDrowsinessAlert(true);
         incrementDrowsinessEvents();
         setTimeout(() => setShowDrowsinessAlert(false), 5000);
       }
 
-      if (fData.distraction.is_distracted && !showDistractionAlert) {
+      if (fData?.distraction?.is_distracted && !showDistractionAlert) {
         setShowDistractionAlert(true);
         incrementDistractionCount();
         setTimeout(() => setShowDistractionAlert(false), 5000);
       }
 
-      if (fData.distraction.type === "away" && !showPersonAlert) {
+      if (fData?.distraction?.type === "away" && !showPersonAlert) {
         setShowPersonAlert(true);
         setTimeout(() => setShowPersonAlert(false), 5000);
       }
     } catch (err) {
-      console.error("Error during real-time tracking:", err);
+      console.warn("Real-time tracking frame skipped:", err);
+    } finally {
+      isDetectingRef.current = false;
     }
   }, [
+    isActive,
+    multimodal,
     setFocusScore,
     setAttentionScore,
     setDrowsinessScore,
     incrementDrowsinessEvents,
     incrementDistractionCount,
-    setCurrentEmotion,
-    addEmotion,
     showDrowsinessAlert,
     showDistractionAlert,
     showPersonAlert,
@@ -144,12 +176,17 @@ export default function SessionPage() {
         incrementSessionDuration();
       }, 1000);
 
-      // Run detection every 5 seconds
+      // Trigger immediate detection on start
+      if (!privacyMode) {
+        runRealDetection();
+      }
+
+      // Fast 1-second real-time detection loop
       detectionIntervalRef.current = setInterval(() => {
         if (!privacyMode) {
           runRealDetection();
         }
-      }, 5000);
+      }, 1000);
     }
 
     return () => {
@@ -162,14 +199,18 @@ export default function SessionPage() {
     try {
       const res = await sessionAPI.start();
       sessionRef.current = res.data;
-      setIsActive(true);
-      setIsPaused(false);
-      setDuration(0);
-      if (!privacyMode) {
-        runRealDetection();
-      }
     } catch (err) {
-      console.error("Failed to start session:", err);
+      console.warn("Server start session returned error, continuing with local session:", err);
+      sessionRef.current = { id: Date.now() };
+    }
+    setIsActive(true);
+    setIsPaused(false);
+    setDuration(0);
+    multimodal.handlePresenceDetected();
+    if (!privacyMode) {
+      runRealDetection();
+    } else {
+      multimodal.triggerVoiceFallback("Privacy mode enabled: Camera paused.");
     }
   };
 
@@ -198,7 +239,7 @@ export default function SessionPage() {
   const endSession = async () => {
     if (sessionRef.current) {
       try {
-        await sessionAPI.end(sessionRef.current.id);
+        await sessionAPI.end(sessionRef.current.id, duration);
       } catch (err) {
         console.error("Failed to end session:", err);
       }
@@ -211,6 +252,7 @@ export default function SessionPage() {
     setShowDistractionAlert(false);
     setShowPersonAlert(false);
     sessionRef.current = null;
+    multimodal.resetInteraction();
   };
 
   return (
@@ -246,6 +288,7 @@ export default function SessionPage() {
       <AnimatePresence>
         {showDrowsinessAlert && (
           <motion.div
+            key="drowsiness-alert"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -265,6 +308,7 @@ export default function SessionPage() {
 
         {showDistractionAlert && (
           <motion.div
+            key="distraction-alert"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -284,6 +328,7 @@ export default function SessionPage() {
 
         {showPersonAlert && (
           <motion.div
+            key="person-alert"
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -20 }}
@@ -308,7 +353,7 @@ export default function SessionPage() {
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ delay: 0.1 }}
-          className="lg:col-span-2"
+          className="lg:col-span-2 space-y-6"
         >
           <Card className="overflow-hidden">
             <CardHeader className="pb-3">
@@ -343,14 +388,18 @@ export default function SessionPage() {
                       ref={webcamRef}
                       audio={false}
                       screenshotFormat="image/jpeg"
+                      screenshotQuality={0.6}
+                      minScreenshotWidth={480}
+                      minScreenshotHeight={360}
+                      videoConstraints={{ width: 640, height: 480, facingMode: "user" }}
                       className="w-full h-full object-cover"
                       mirrored
                     />
                     {/* Overlay metrics */}
                     <div className="absolute top-4 left-4 flex flex-col gap-2">
-                      <Badge variant="glow" className="gap-1">
+                      <Badge variant="glow" className="gap-1 font-mono">
                         <Clock className="w-3 h-3" />
-                        {formatDuration(duration)}
+                        {formatTimer(duration)}
                       </Badge>
                       {detectionResult && (
                         <Badge variant="glow" className="gap-1">
@@ -418,6 +467,32 @@ export default function SessionPage() {
               </div>
             </CardContent>
           </Card>
+
+          {/* Multimodal Interaction Engine & Voice/Screen-Text Fallback Interface */}
+          <MultimodalSessionInterface
+            state={multimodal.state}
+            activePrompt={multimodal.activePrompt}
+            currentAffectState={multimodal.currentAffectState}
+            confirmedAffectState={multimodal.confirmedAffectState}
+            environmentStatus={multimodal.environmentStatus}
+            isSpeaking={multimodal.isSpeaking}
+            isListening={multimodal.isListening}
+            isMuted={multimodal.isMuted}
+            sttSupported={multimodal.sttSupported}
+            ttsSupported={multimodal.ttsSupported}
+            speechError={multimodal.speechError}
+            isOfflineMode={multimodal.isOfflineMode}
+            onConfirmState={multimodal.confirmActiveState}
+            onRejectState={multimodal.rejectActiveState}
+            onManualMoodSubmit={multimodal.handleManualMoodSubmit}
+            onSkipMood={multimodal.skipMoodSpecification}
+            onTriggerVoiceFallback={multimodal.triggerVoiceFallback}
+            onTriggerManualInput={multimodal.triggerManualInput}
+            onToggleMute={multimodal.toggleMute}
+            onReplayVoice={multimodal.replayVoice}
+            onCancelSpeech={multimodal.cancelSpeech}
+            onReset={multimodal.resetInteraction}
+          />
         </motion.div>
 
         {/* Live Metrics */}
@@ -433,10 +508,10 @@ export default function SessionPage() {
               <div className="text-center">
                 <Clock className="w-6 h-6 text-emovert-cyan mx-auto mb-2" />
                 <div className="text-3xl font-bold text-white font-mono">
-                  {formatDuration(duration)}
+                  {formatTimer(duration)}
                 </div>
                 <div className="text-xs text-white/40 mt-1">
-                  Session Duration
+                  Session Duration {duration > 0 && `(${formatDuration(duration)})`}
                 </div>
               </div>
             </CardContent>

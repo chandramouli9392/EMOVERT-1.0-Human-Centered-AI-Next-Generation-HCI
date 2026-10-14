@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,43 +9,81 @@ import { Progress } from "@/components/ui/progress";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useEmovertStore } from "@/hooks/useStore";
 import {
-  User,
   Target,
   Brain,
   Flame,
   Trophy,
   Clock,
   Heart,
-  TrendingUp,
   Calendar,
-  Edit3,
+  Sparkles,
 } from "lucide-react";
+import { sessionAPI, emotionAPI, achievementAPI } from "@/lib/api";
+import { formatDuration, parseServerDate } from "@/lib/utils";
 
 export default function ProfilePage() {
-  const { user, streak, eqScore, focusScore, totalSessions, totalEmotionsLogged } = useEmovertStore();
+  const { user, streak, eqScore, focusScore, totalSessions } = useEmovertStore();
+  const [recentSessions, setRecentSessions] = useState<any[]>([]);
+  const [emotionHistory, setEmotionHistory] = useState<any[]>([]);
+  const [totalEmotions, setTotalEmotions] = useState(0);
+  const [achievementCounts, setAchievementCounts] = useState({ unlocked: 0, total: 6 });
+
+  useEffect(() => {
+    // 1. Fetch real session history
+    sessionAPI.getHistory()
+      .then((res) => {
+        const list = res.data || [];
+        const formatted = list.slice(0, 5).map((s: any) => {
+          const date = parseServerDate(s.start_time);
+          return {
+            date: date.toLocaleDateString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }),
+            duration: formatDuration(s.duration || 0),
+            focus: Math.round(s.focus_score || 0),
+            emotion: s.dominant_emotion || "neutral",
+          };
+        });
+        setRecentSessions(formatted);
+      })
+      .catch((err) => console.error("Failed to load session history for profile:", err));
+
+    // 2. Fetch real emotion logs
+    emotionAPI.getHistory()
+      .then((res) => {
+        const logs = res.data || [];
+        setTotalEmotions(logs.length);
+        if (logs.length > 0) {
+          const counts: Record<string, number> = {};
+          logs.forEach((l: any) => {
+            counts[l.emotion] = (counts[l.emotion] || 0) + 1;
+          });
+          const total = logs.length;
+          const mapped = Object.keys(counts).map((emotion) => ({
+            emotion: emotion.charAt(0).toUpperCase() + emotion.slice(1),
+            count: counts[emotion],
+            percentage: Math.round((counts[emotion] / total) * 100),
+          }));
+          setEmotionHistory(mapped);
+        }
+      })
+      .catch((err) => console.error("Failed to load emotion history for profile:", err));
+
+    // 3. Fetch achievements
+    achievementAPI.getAll()
+      .then((res) => {
+        const all = res.data || [];
+        const unlocked = all.filter((a: any) => a.unlocked).length;
+        setAchievementCounts({ unlocked, total: all.length || 6 });
+      })
+      .catch(() => {});
+  }, []);
 
   const stats = [
-    { label: "Total Sessions", value: totalSessions || 47, icon: Target, color: "#00f0ff" },
-    { label: "Emotions Logged", value: totalEmotionsLogged || 1234, icon: Heart, color: "#ec4899" },
-    { label: "Focus Score", value: `${focusScore || 82}/100`, icon: Target, color: "#22c55e" },
-    { label: "EQ Score", value: `${eqScore || 72}/100`, icon: Brain, color: "#a855f7" },
-    { label: "Current Streak", value: `${streak || 12} days`, icon: Flame, color: "#f97316" },
-    { label: "Achievements", value: "8/15", icon: Trophy, color: "#eab308" },
-  ];
-
-  const recentSessions = [
-    { date: "Today", duration: "45 min", focus: 85, emotion: "Happy" },
-    { date: "Yesterday", duration: "30 min", focus: 78, emotion: "Focused" },
-    { date: "2 days ago", duration: "60 min", focus: 92, emotion: "Happy" },
-    { date: "3 days ago", duration: "20 min", focus: 65, emotion: "Neutral" },
-  ];
-
-  const emotionHistory = [
-    { emotion: "Happy", count: 36, percentage: 36 },
-    { emotion: "Neutral", count: 25, percentage: 25 },
-    { emotion: "Sad", count: 15, percentage: 15 },
-    { emotion: "Angry", count: 12, percentage: 12 },
-    { emotion: "Stress", count: 12, percentage: 12 },
+    { label: "Total Sessions", value: totalSessions || recentSessions.length || 0, icon: Target, color: "#00f0ff" },
+    { label: "Emotions Logged", value: totalEmotions, icon: Heart, color: "#ec4899" },
+    { label: "Focus Score", value: `${Math.round(focusScore)}/100`, icon: Target, color: "#22c55e" },
+    { label: "EQ Score", value: `${Math.round(eqScore)}/100`, icon: Brain, color: "#a855f7" },
+    { label: "Current Streak", value: `${streak} days`, icon: Flame, color: "#f97316" },
+    { label: "Achievements", value: `${achievementCounts.unlocked}/${achievementCounts.total}`, icon: Trophy, color: "#eab308" },
   ];
 
   return (
@@ -70,17 +109,13 @@ export default function ProfilePage() {
                 </div>
               </div>
               <div className="text-center sm:text-left flex-1">
-                <h2 className="text-2xl font-bold text-white">{user?.name || "Chandramouli Boppana"}</h2>
-                <p className="text-white/40">{user?.email || "chandramouli@emovert.ai"}</p>
+                <h2 className="text-2xl font-bold text-white">{user?.name || "User"}</h2>
+                <p className="text-white/40">{user?.email || "No email"}</p>
                 <div className="flex items-center gap-2 mt-3 justify-center sm:justify-start">
-                  <Badge variant="glow">Premium Member</Badge>
+                  <Badge variant="glow">Live Account</Badge>
                   <Badge variant="success">Active</Badge>
                 </div>
               </div>
-              <Button variant="outline" className="gap-2">
-                <Edit3 className="w-4 h-4" />
-                Edit Profile
-              </Button>
             </div>
           </CardContent>
         </Card>
@@ -120,23 +155,16 @@ export default function ProfilePage() {
               <div>
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-white/50">Current EQ Score</span>
-                  <span className="text-lg font-bold text-emovert-purple">{eqScore || 72}/100</span>
+                  <span className="text-lg font-bold text-emovert-purple">{Math.round(eqScore)}/100</span>
                 </div>
-                <Progress value={eqScore || 72} indicatorColor="bg-emovert-purple" className="h-3" />
+                <Progress value={eqScore} indicatorColor="bg-emovert-purple" className="h-3" />
               </div>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="text-center p-3 rounded-lg bg-white/5">
-                  <div className="text-sm font-bold text-white">+8%</div>
-                  <div className="text-[10px] text-white/40">This Week</div>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-white/5">
-                  <div className="text-sm font-bold text-white">+15%</div>
-                  <div className="text-[10px] text-white/40">This Month</div>
-                </div>
-                <div className="text-center p-3 rounded-lg bg-white/5">
-                  <div className="text-sm font-bold text-white">+32%</div>
-                  <div className="text-[10px] text-white/40">This Year</div>
-                </div>
+              <div className="p-4 rounded-xl bg-white/5 border border-white/5 text-center">
+                <p className="text-xs text-white/60">
+                  {eqScore > 0
+                    ? "Your emotional quotient is continuously calibrated against your focus consistency and mood stability."
+                    : "Complete focus sessions to start building your Emotional Intelligence rating."}
+                </p>
               </div>
             </CardContent>
           </Card>
@@ -152,15 +180,23 @@ export default function ProfilePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-3">
-              {emotionHistory.map((item) => (
-                <div key={item.emotion}>
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="text-sm text-white/60">{item.emotion}</span>
-                    <span className="text-sm text-white">{item.count} ({item.percentage}%)</span>
+              {emotionHistory.length > 0 ? (
+                emotionHistory.map((item) => (
+                  <div key={item.emotion}>
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="text-sm text-white/60">{item.emotion}</span>
+                      <span className="text-sm text-white">{item.count} ({item.percentage}%)</span>
+                    </div>
+                    <Progress value={item.percentage} className="h-2" />
                   </div>
-                  <Progress value={item.percentage} className="h-2" />
+                ))
+              ) : (
+                <div className="h-44 flex flex-col items-center justify-center text-center p-4 rounded-xl bg-white/5 border border-white/5">
+                  <Heart className="w-7 h-7 text-emovert-pink/40 mb-2" />
+                  <p className="text-sm text-white/60 font-medium">No emotions logged</p>
+                  <p className="text-xs text-white/30 mt-1">Recorded emotions will appear here</p>
                 </div>
-              ))}
+              )}
             </CardContent>
           </Card>
         </motion.div>
@@ -176,28 +212,36 @@ export default function ProfilePage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {recentSessions.map((session, i) => (
-                <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-white/5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-emovert-cyan/10 flex items-center justify-center">
-                      <Calendar className="w-5 h-5 text-emovert-cyan" />
+            {recentSessions.length > 0 ? (
+              <div className="space-y-3">
+                {recentSessions.map((session, i) => (
+                  <div key={i} className="flex items-center justify-between p-3 rounded-lg bg-white/5">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-emovert-cyan/10 flex items-center justify-center">
+                        <Calendar className="w-5 h-5 text-emovert-cyan" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium text-white">{session.date}</p>
+                        <p className="text-xs text-white/40">{session.duration}</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-white">{session.date}</p>
-                      <p className="text-xs text-white/40">{session.duration}</p>
+                    <div className="flex items-center gap-3">
+                      <Badge variant="secondary" className="capitalize">{session.emotion}</Badge>
+                      <div className="text-right">
+                        <p className="text-sm font-medium text-emovert-green">{session.focus}%</p>
+                        <p className="text-[10px] text-white/40">Focus</p>
+                      </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <Badge variant="secondary">{session.emotion}</Badge>
-                    <div className="text-right">
-                      <p className="text-sm font-medium text-emovert-green">{session.focus}%</p>
-                      <p className="text-[10px] text-white/40">Focus</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            ) : (
+              <div className="p-8 flex flex-col items-center justify-center text-center rounded-xl bg-white/5 border border-white/5">
+                <Clock className="w-8 h-8 text-emovert-cyan/40 mb-2" />
+                <p className="text-sm text-white/60 font-medium">No sessions recorded yet</p>
+                <p className="text-xs text-white/30 mt-1">Start your first live session to record focus and emotion history</p>
+              </div>
+            )}
           </CardContent>
         </Card>
       </motion.div>

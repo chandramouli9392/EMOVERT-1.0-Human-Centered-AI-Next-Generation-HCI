@@ -53,17 +53,8 @@ async def get_me(current_user: dict = Depends(get_current_user), db: Session = D
 
 @router.post("/google")
 async def google_login(token: str, db: Session = Depends(get_db)):
-    # In production, verify Google token here
-    # For now, create or get user
-    user = db.query(User).filter(User.email == "google@user.com").first()
-    if not user:
-        user = User(email="google@user.com", name="Google User", google_id="google123")
-        db.add(user)
-        db.commit()
-        db.refresh(user)
-
-    access_token = create_access_token(
-        data={"sub": str(user.id), "email": user.email},
-        expires_delta=timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    raise HTTPException(
+        status_code=status.HTTP_501_NOT_IMPLEMENTED,
+        detail="Google OAuth provider is not configured. Please register and login using your email and password."
     )
-    return {"access_token": access_token}
+

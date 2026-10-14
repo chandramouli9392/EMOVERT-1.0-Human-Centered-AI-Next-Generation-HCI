@@ -27,6 +27,7 @@ interface Track {
   category: string;
   duration: string;
   cover: string;
+  url?: string;
   isFavorite: boolean;
 }
 
@@ -91,7 +92,7 @@ export default function MusicPage() {
 
   useEffect(() => {
     if (audioRef.current && currentTrack) {
-      if (audioRef.current.src !== currentTrack.url) {
+      if (currentTrack.url && audioRef.current.src !== currentTrack.url) {
         audioRef.current.src = currentTrack.url;
       }
       if (isPlaying) {

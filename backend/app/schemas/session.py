@@ -5,6 +5,9 @@ from datetime import datetime
 class SessionStart(BaseModel):
     pass
 
+class SessionEndRequest(BaseModel):
+    duration: Optional[int] = None
+
 class SessionResponse(BaseModel):
     id: int
     user_id: int
@@ -23,6 +26,7 @@ class SessionResponse(BaseModel):
 
 class EmotionDetectRequest(BaseModel):
     image_data: str  # base64 encoded image
+    session_id: Optional[int] = None
 
 class EmotionDetectResponse(BaseModel):
     emotion: str

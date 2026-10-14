@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 export default function SettingsPage() {
-  const { privacyMode, setPrivacyMode, setPrivacySettings } = useEmovertStore();
+  const { user, privacyMode, setPrivacyMode, setPrivacySettings } = useEmovertStore();
   const [notifications, setNotifications] = useState(true);
   const [storeAnalytics, setStoreAnalytics] = useState(true);
   const [shareData, setShareData] = useState(false);
@@ -141,7 +141,7 @@ export default function SettingsPage() {
               </div>
               <div className="flex-1">
                 <p className="text-sm font-medium text-white">Email</p>
-                <p className="text-xs text-white/40">chandramouli@emovert.ai</p>
+                <p className="text-xs text-white/40">{user?.email || "No email"}</p>
               </div>
               <Button variant="outline" size="sm">Change</Button>
             </div>

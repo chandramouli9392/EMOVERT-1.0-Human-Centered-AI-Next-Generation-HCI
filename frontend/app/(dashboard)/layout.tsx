@@ -222,7 +222,7 @@ export default function DashboardLayout({
                     {user?.name || "User"}
                   </p>
                   <p className="text-xs text-white/40 truncate">
-                    {user?.email || "user@emovert.ai"}
+                    {user?.email || ""}
                   </p>
                 </motion.div>
               )}

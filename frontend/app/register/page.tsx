@@ -4,7 +4,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Brain, Mail, Loader2 } from "lucide-react";
+import { Brain, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEmovertStore } from "@/hooks/useStore";
@@ -19,7 +19,6 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
 
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,27 +46,6 @@ export default function RegisterPage() {
     }
   };
 
-  const handleGoogleLogin = async () => {
-    setGoogleLoading(true);
-    try {
-      const response = await authAPI.googleLogin("dummy_google_token");
-      const { access_token } = response.data;
-      Cookies.set("emovert_token", access_token, { expires: 7 });
-
-      // Fetch user details
-      const userRes = await authAPI.me();
-      setUser(userRes.data);
-      setIsAuthenticated(true);
-      toast.success("Signed in with Google!");
-      router.push("/dashboard");
-    } catch (err: any) {
-      console.error(err);
-      toast.error(err.response?.data?.detail || "Google Login failed");
-    } finally {
-      setGoogleLoading(false);
-    }
-  };
-
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} className="w-full max-w-md">
@@ -91,8 +69,9 @@ export default function RegisterPage() {
                   placeholder="Enter your name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-emovert-cyan/50 disabled:opacity-50"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -102,8 +81,9 @@ export default function RegisterPage() {
                   placeholder="Enter your email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-emovert-cyan/50 disabled:opacity-50"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -113,11 +93,12 @@ export default function RegisterPage() {
                   placeholder="Create a password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  disabled={loading || googleLoading}
+                  disabled={loading}
                   className="w-full px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-white placeholder:text-white/30 focus:outline-none focus:border-emovert-cyan/50 disabled:opacity-50"
+                  required
                 />
               </div>
-              <Button type="submit" disabled={loading || googleLoading} className="w-full glow-cyan">
+              <Button type="submit" disabled={loading} className="w-full glow-cyan">
                 {loading ? (
                   <>
                     <Loader2 className="w-4 h-4 mr-2 animate-spin" />
@@ -128,24 +109,7 @@ export default function RegisterPage() {
                 )}
               </Button>
             </form>
-            <div className="relative my-4">
-              <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-white/10" /></div>
-              <div className="relative flex justify-center text-xs"><span className="px-2 bg-[#0a0a0f] text-white/30">or continue with</span></div>
-            </div>
-            <Button
-              variant="outline"
-              disabled={loading || googleLoading}
-              onClick={handleGoogleLogin}
-              className="w-full gap-2"
-            >
-              {googleLoading ? (
-                <Loader2 className="w-4 h-4 animate-spin" />
-              ) : (
-                <Mail className="w-4 h-4" />
-              )}
-              Google
-            </Button>
-            <p className="text-center text-sm text-white/40">Already have an account? <Link href="/login" className="text-emovert-cyan hover:underline">Sign in</Link></p>
+            <p className="text-center text-sm text-white/40 pt-2">Already have an account? <Link href="/login" className="text-emovert-cyan hover:underline">Sign in</Link></p>
           </CardContent>
         </Card>
       </motion.div>

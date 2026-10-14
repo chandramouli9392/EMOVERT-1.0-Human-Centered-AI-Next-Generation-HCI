@@ -8,6 +8,8 @@ from app.models.emotion import EmotionLog
 from app.schemas.session import EmotionDetectRequest, EmotionDetectResponse
 from app.services.emotion_detection import EmotionDetector
 
+from datetime import datetime
+
 router = APIRouter()
 detector = EmotionDetector()
 
@@ -18,16 +20,31 @@ async def detect_emotion(
     db: Session = Depends(get_db)
 ):
     result = detector.detect_emotion(request.image_data)
+    user_id = int(current_user["sub"])
 
-    # Log emotion
-    emotion_log = EmotionLog(
-        user_id=int(current_user["sub"]),
-        session_id=1,  # Get from active session
-        emotion=result["emotion"],
-        confidence=result["confidence"]
-    )
-    db.add(emotion_log)
-    db.commit()
+    # Link with specified session or active user session
+    session_id = request.session_id
+    if not session_id:
+        from app.models.session import Session as SessionModel
+        active_sess = db.query(SessionModel).filter(
+            SessionModel.user_id == user_id,
+            SessionModel.status == "active"
+        ).order_by(SessionModel.start_time.desc()).first()
+        if active_sess:
+            session_id = active_sess.id
+
+    try:
+        emotion_log = EmotionLog(
+            user_id=user_id,
+            session_id=session_id,
+            emotion=result["emotion"],
+            confidence=result["confidence"],
+            timestamp=datetime.utcnow()
+        )
+        db.add(emotion_log)
+        db.commit()
+    except Exception as e:
+        db.rollback()
 
     return EmotionDetectResponse(
         emotion=result["emotion"],

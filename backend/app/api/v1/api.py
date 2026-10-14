@@ -1,6 +1,8 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, sessions, emotions, focus, analytics, coach, chat, music, reports, achievements
+from app.api.v1.endpoints import (
+    auth, sessions, emotions, focus, analytics, coach, chat, music, reports, achievements, environment, interactions
+)
 
 api_router = APIRouter()
 
@@ -14,3 +16,5 @@ api_router.include_router(chat.router, prefix="/chat", tags=["Chat"])
 api_router.include_router(music.router, prefix="/music", tags=["Music"])
 api_router.include_router(reports.router, prefix="/reports", tags=["Reports"])
 api_router.include_router(achievements.router, prefix="/achievements", tags=["Achievements"])
+api_router.include_router(environment.router, prefix="/environment", tags=["Environment"])
+api_router.include_router(interactions.router, prefix="/interactions", tags=["Interaction Telemetry"])

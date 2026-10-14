@@ -27,7 +27,7 @@ export function AIBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<Particle[]>([]);
   const nodesRef = useRef<Node[]>([]);
-  const animationRef = useRef<number>();
+  const animationRef = useRef<number | undefined>(undefined);
   const mouseRef = useRef({ x: 0, y: 0 });
 
   const colors = ["#00f0ff", "#a855f7", "#ec4899", "#3b82f6", "#22c55e"];

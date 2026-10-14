@@ -5,10 +5,48 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+export function parseServerDate(date: Date | string | undefined | null): Date {
+  if (!date) return new Date();
+  if (date instanceof Date) return date;
+  let s = String(date).trim();
+  // If the server string has time and lacks a timezone offset or Z, treat as UTC
+  if (s.includes(":") && !s.endsWith("Z") && !/[+-]\d{2}(:\d{2})?$/.test(s)) {
+    s = s.replace(" ", "T") + "Z";
+  }
+  const parsed = new Date(s);
+  return isNaN(parsed.getTime()) ? new Date(date) : parsed;
+}
+
+export function formatTimer(seconds: number): string {
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
+
+  const pad = (n: number) => String(n).padStart(2, "0");
+  if (hours > 0) {
+    return `${pad(hours)}:${pad(minutes)}:${pad(secs)}`;
+  }
+  return `${pad(minutes)}:${pad(secs)}`;
+}
+
+export function formatTimeAgo(date: Date | string): string {
+  const d = parseServerDate(date);
+  const diffSec = Math.max(0, Math.round((Date.now() - d.getTime()) / 1000));
+  if (diffSec < 60) return "Just now";
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin} min ago`;
+  const diffHours = Math.round(diffMin / 60);
+  if (diffHours < 24) return `${diffHours} hr ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays} day${diffDays > 1 ? "s" : ""} ago`;
+}
+
 export function formatDuration(seconds: number): string {
-  const hours = Math.floor(seconds / 3600);
-  const minutes = Math.floor((seconds % 3600) / 60);
-  const secs = seconds % 60;
+  const total = Math.max(0, Math.floor(seconds));
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const secs = total % 60;
 
   if (hours > 0) {
     return `${hours}h ${minutes}m ${secs}s`;
@@ -20,7 +58,7 @@ export function formatDuration(seconds: number): string {
 }
 
 export function formatDate(date: Date | string): string {
-  const d = new Date(date);
+  const d = parseServerDate(date);
   return d.toLocaleDateString("en-US", {
     weekday: "short",
     month: "short",
@@ -30,7 +68,7 @@ export function formatDate(date: Date | string): string {
 }
 
 export function formatTime(date: Date | string): string {
-  const d = new Date(date);
+  const d = parseServerDate(date);
   return d.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
@@ -39,6 +77,7 @@ export function formatTime(date: Date | string): string {
 
 export const emotionColors: Record<string, string> = {
   happy: "#22c55e",
+  excited: "#eab308",
   sad: "#3b82f6",
   angry: "#ef4444",
   neutral: "#6b7280",
@@ -51,11 +90,14 @@ export const emotionColors: Record<string, string> = {
   confusion: "#a855f7",
   contempt: "#52525b",
   focused: "#00f0ff",
-  sleepy: "#1e3a5f",
+  calm: "#06b6d4",
+  curious: "#a855f7",
+  sleepy: "#6366f1",
 };
 
 export const emotionIcons: Record<string, string> = {
   happy: "😊",
+  excited: "🤩",
   sad: "😢",
   angry: "😠",
   neutral: "😐",
@@ -64,28 +106,33 @@ export const emotionIcons: Record<string, string> = {
   stress: "😫",
   anxiety: "😰",
   disgust: "🤢",
-  boredom: "😴",
+  boredom: "🥱",
   confusion: "😕",
   contempt: "😒",
   focused: "🎯",
-  sleepy: "💤",
+  calm: "😌",
+  curious: "🧐",
+  sleepy: "😴",
 };
 
 export const emotionDescriptions: Record<string, string> = {
   happy: "You're feeling positive and joyful",
+  excited: "High energy, optimism, and enthusiasm",
   sad: "You might need some uplifting activities",
   angry: "Take a moment to breathe and calm down",
-  neutral: "You're in a balanced state",
+  neutral: "You're in a balanced resting state",
   surprise: "Something unexpected caught your attention",
-  fear: "You're feeling apprehensive or worried",
+  fear: "You're feeling apprehensive or alert",
   stress: "Your body is signaling high tension",
   anxiety: "You're experiencing nervous energy",
-  disgust: "Something is bothering you",
-  boredom: "You might need stimulation",
-  confusion: "You're processing complex information",
-  contempt: "You're feeling dismissive",
-  focused: "You're in deep concentration",
-  sleepy: "Your energy is low",
+  disgust: "Something is bothering or repelling you",
+  boredom: "Low stimulation detected; try switching tasks",
+  confusion: "You're processing complex or puzzling information",
+  contempt: "You're feeling dismissive or skeptical",
+  focused: "You're in deep flow and concentration",
+  calm: "Tranquil, peaceful, and centered",
+  curious: "Inquisitive and actively exploring ideas",
+  sleepy: "Low arousal detected; consider a brief rest",
 };
 
 export function getEmotionColor(emotion: string): string {

@@ -9,16 +9,22 @@ import math
 from typing import Dict, List, Optional, Tuple
 import numpy as np
 
-try:
-    import mediapipe as mp
-    MEDIAPIPE_AVAILABLE = True
-except ImportError:
-    MEDIAPIPE_AVAILABLE = False
+import os
+
+ENABLE_HEAVY_AI = os.getenv("ENABLE_HEAVY_AI", "false").lower() == "true"
+MEDIAPIPE_AVAILABLE = False
+
+if ENABLE_HEAVY_AI:
+    try:
+        import mediapipe as mp
+        MEDIAPIPE_AVAILABLE = True
+    except Exception:
+        pass
 
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except Exception:
     CV2_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -39,14 +45,24 @@ class FocusAnalyzer:
     def __init__(self):
         self._face_mesh = None
         self._face_detection = None
+        self._face_cascade = None
+        self._eye_cascade = None
+        self._last_face_center = None
         self._init_models()
         self._history: List[float] = []
         self._max_history = 30
 
     def _init_models(self):
-        """Initialize MediaPipe models."""
+        """Initialize MediaPipe and OpenCV detection models."""
+        if CV2_AVAILABLE and self._face_cascade is None:
+            try:
+                self._face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                self._eye_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_eye.xml')
+                logger.info("OpenCV cascades initialized for FocusAnalyzer")
+            except Exception as e:
+                logger.warning(f"OpenCV cascades init failed: {e}")
+
         if not MEDIAPIPE_AVAILABLE:
-            logger.warning("MediaPipe not available - focus analysis will use fallback")
             return
 
         try:
@@ -70,6 +86,8 @@ class FocusAnalyzer:
     def calculate_focus_score(self, frame: np.ndarray) -> float:
         """Calculate overall focus score (0-100) from a frame."""
         if self._face_mesh is None:
+            if CV2_AVAILABLE and self._face_cascade is not None:
+                return self._calculate_focus_with_opencv(frame)
             return self._fallback_score()
 
         try:
@@ -77,6 +95,8 @@ class FocusAnalyzer:
             results = self._face_mesh.process(rgb)
 
             if not results.multi_face_landmarks:
+                if CV2_AVAILABLE and self._face_cascade is not None:
+                    return self._calculate_focus_with_opencv(frame)
                 return 0.0  # No face detected = no focus
 
             landmarks = results.multi_face_landmarks[0].landmark
@@ -98,9 +118,54 @@ class FocusAnalyzer:
             logger.warning(f"Focus calculation failed: {e}")
             return self._fallback_score()
 
+    def _calculate_focus_with_opencv(self, frame: np.ndarray) -> float:
+        """Calculate live focus score using OpenCV face and eye detection."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
+            faces = self._face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(60, 60))
+
+            if len(faces) == 0:
+                self._update_history(0.0)
+                return 0.0
+
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+            H, W = frame.shape[:2]
+
+            cx = (x + w / 2.0) / W
+            cy = (y + h / 2.0) / H
+
+            # Center alignment score (0 - 100)
+            offset = math.sqrt((cx - 0.5)**2 + (cy - 0.5)**2)
+            align_score = max(20.0, 100.0 - (offset * 140.0))
+
+            # Eye detection inside upper face
+            roi_upper = gray[y + int(h * 0.15):y + int(h * 0.58), x:x + w]
+            eyes = self._eye_cascade.detectMultiScale(roi_upper, scaleFactor=1.15, minNeighbors=4, minSize=(16, 16))
+            eye_score = 95.0 if len(eyes) >= 2 else (75.0 if len(eyes) == 1 else 40.0)
+
+            # Stability relative to previous frame
+            if self._last_face_center is not None:
+                dx = cx - self._last_face_center[0]
+                dy = cy - self._last_face_center[1]
+                drift = math.sqrt(dx**2 + dy**2)
+                stability = max(50.0, 100.0 - (drift * 500.0))
+            else:
+                stability = 90.0
+            self._last_face_center = (cx, cy)
+
+            focus = round(align_score * 0.40 + eye_score * 0.35 + stability * 0.25, 2)
+            focus = max(10.0, min(100.0, focus))
+            self._update_history(focus)
+            return focus
+        except Exception as e:
+            logger.warning(f"OpenCV focus calculation failed: {e}")
+            return 75.0
+
     def calculate_attention_score(self, frame: np.ndarray) -> float:
         """Calculate attention score (0-100) based on gaze direction."""
         if self._face_mesh is None:
+            if CV2_AVAILABLE and self._face_cascade is not None:
+                return self._calculate_attention_with_opencv(frame)
             return self._fallback_score()
 
         try:
@@ -108,6 +173,8 @@ class FocusAnalyzer:
             results = self._face_mesh.process(rgb)
 
             if not results.multi_face_landmarks:
+                if CV2_AVAILABLE and self._face_cascade is not None:
+                    return self._calculate_attention_with_opencv(frame)
                 return 0.0
 
             landmarks = results.multi_face_landmarks[0].landmark
@@ -129,6 +196,35 @@ class FocusAnalyzer:
         except Exception as e:
             logger.warning(f"Attention calculation failed: {e}")
             return self._fallback_score()
+
+    def _calculate_attention_with_opencv(self, frame: np.ndarray) -> float:
+        """Calculate live attention score using OpenCV face centering and gaze."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
+            faces = self._face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(60, 60))
+
+            if len(faces) == 0:
+                return 0.0
+
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+            H, W = frame.shape[:2]
+
+            cx = (x + w / 2.0) / W
+            cy = (y + h / 2.0) / H
+
+            center_dist = math.sqrt((cx - 0.5)**2 + (cy - 0.5)**2)
+            attention = max(15.0, 100.0 - (center_dist * 160.0))
+
+            # Detect eyes for gaze confirmation
+            roi_upper = gray[y + int(h * 0.15):y + int(h * 0.58), x:x + w]
+            eyes = self._eye_cascade.detectMultiScale(roi_upper, scaleFactor=1.15, minNeighbors=4, minSize=(16, 16))
+            if len(eyes) >= 2 and center_dist < 0.15:
+                attention = min(100.0, attention * 1.1)
+
+            return round(attention, 2)
+        except Exception as e:
+            logger.warning(f"OpenCV attention calculation failed: {e}")
+            return 75.0
 
     def _calculate_eye_focus(self, landmarks, w: int, h: int) -> float:
         """Calculate focus based on eye openness and position."""

@@ -10,16 +10,22 @@ from typing import Dict, List, Optional, Tuple
 import numpy as np
 from datetime import datetime
 
-try:
-    import mediapipe as mp
-    MEDIAPIPE_AVAILABLE = True
-except ImportError:
-    MEDIAPIPE_AVAILABLE = False
+import os
+
+ENABLE_HEAVY_AI = os.getenv("ENABLE_HEAVY_AI", "false").lower() == "true"
+MEDIAPIPE_AVAILABLE = False
+
+if ENABLE_HEAVY_AI:
+    try:
+        import mediapipe as mp
+        MEDIAPIPE_AVAILABLE = True
+    except Exception:
+        pass
 
 try:
     import cv2
     CV2_AVAILABLE = True
-except ImportError:
+except Exception:
     CV2_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
@@ -46,6 +52,7 @@ class DistractionDetector:
 
     def __init__(self):
         self._face_mesh = None
+        self._face_cascade = None
         self._init_model()
         self._distraction_frames = 0
         self._focused_frames = 0
@@ -56,9 +63,15 @@ class DistractionDetector:
         self._last_head_pos = (0.5, 0.5)
 
     def _init_model(self):
-        """Initialize MediaPipe FaceMesh."""
+        """Initialize MediaPipe FaceMesh and OpenCV cascades."""
+        if CV2_AVAILABLE and self._face_cascade is None:
+            try:
+                self._face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+                logger.info("OpenCV face cascade initialized for DistractionDetector")
+            except Exception as e:
+                logger.warning(f"OpenCV cascade init failed: {e}")
+
         if not MEDIAPIPE_AVAILABLE:
-            logger.warning("MediaPipe not available - distraction detection disabled")
             return
 
         try:
@@ -82,6 +95,8 @@ class DistractionDetector:
                           severity, score, distraction_type
         """
         if self._face_mesh is None:
+            if CV2_AVAILABLE and self._face_cascade is not None:
+                return self._detect_distraction_with_opencv(frame)
             return self._fallback_result()
 
         try:
@@ -89,6 +104,8 @@ class DistractionDetector:
             results = self._face_mesh.process(rgb)
 
             if not results.multi_face_landmarks:
+                if CV2_AVAILABLE and self._face_cascade is not None:
+                    return self._detect_distraction_with_opencv(frame)
                 return {
                     "is_distracted": True,
                     "gaze_direction": {"x": 0.0, "y": 0.0},
@@ -288,7 +305,60 @@ class DistractionDetector:
         self._distraction_count = 0
         self._distraction_score = 0.0
         self._last_gaze = (0.5, 0.5)
-        self._last_head_pos = (0.5, 0.5)
+    def _detect_distraction_with_opencv(self, frame: np.ndarray) -> Dict:
+        """Detect live distraction using OpenCV face position."""
+        try:
+            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY) if len(frame.shape) == 3 else frame
+            faces = self._face_cascade.detectMultiScale(gray, scaleFactor=1.2, minNeighbors=4, minSize=(60, 60))
+
+            if len(faces) == 0:
+                self._distraction_frames += 1
+                return {
+                    "is_distracted": True,
+                    "gaze_direction": {"x": 0.0, "y": 0.0},
+                    "head_pose": {"yaw": 0.0, "pitch": 0.0, "roll": 0.0},
+                    "severity": "high",
+                    "score": 100.0,
+                    "distraction_type": "away",
+                    "face_detected": False,
+                }
+
+            x, y, w, h = max(faces, key=lambda f: f[2] * f[3])
+            H, W = frame.shape[:2]
+
+            cx = (x + w / 2.0) / W
+            cy = (y + h / 2.0) / H
+
+            dx = cx - 0.5
+            dy = cy - 0.5
+            offset = math.sqrt(dx**2 + dy**2)
+
+            if abs(dx) > 0.28:
+                # User face turned or looking far away from center
+                self._distraction_frames += 1
+                return {
+                    "is_distracted": True,
+                    "gaze_direction": {"x": round(cx, 3), "y": round(cy, 3)},
+                    "head_pose": {"yaw": round(dx * 2.0, 3), "pitch": round(dy * 2.0, 3), "roll": 0.0},
+                    "severity": "medium",
+                    "score": 65.0,
+                    "distraction_type": "head_pose",
+                    "face_detected": True,
+                }
+            else:
+                self._distraction_frames = max(0, self._distraction_frames - 1)
+                return {
+                    "is_distracted": False,
+                    "gaze_direction": {"x": round(cx, 3), "y": round(cy, 3)},
+                    "head_pose": {"yaw": round(dx * 2.0, 3), "pitch": round(dy * 2.0, 3), "roll": 0.0},
+                    "severity": "none",
+                    "score": 0.0,
+                    "distraction_type": "none",
+                    "face_detected": True,
+                }
+        except Exception as e:
+            logger.warning(f"OpenCV distraction detection failed: {e}")
+            return self._fallback_result()
 
     def _fallback_result(self) -> Dict:
         """Fallback result when detection unavailable."""

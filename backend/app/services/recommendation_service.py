@@ -229,12 +229,16 @@ class RecommendationEngine:
         rec_data = RECOMMENDATION_DB.get(normalized_emotion)
         if not rec_data:
             # Try to map similar emotions
-            if normalized_emotion in ["surprise", "confusion"]:
+            if normalized_emotion in ["excited"]:
+                rec_data = RECOMMENDATION_DB.get("happy")
+            elif normalized_emotion in ["calm", "focused"]:
                 rec_data = RECOMMENDATION_DB.get("neutral")
+            elif normalized_emotion in ["surprise", "confusion", "curious"]:
+                rec_data = RECOMMENDATION_DB.get("neutral")
+            elif normalized_emotion in ["sleepy", "boredom"]:
+                rec_data = RECOMMENDATION_DB.get("sad")
             elif normalized_emotion in ["fear", "disgust"]:
                 rec_data = RECOMMENDATION_DB.get("anxiety")
-            elif normalized_emotion in ["boredom"]:
-                rec_data = RECOMMENDATION_DB.get("sad")
             else:
                 rec_data = RECOMMENDATION_DB.get("default")
 
@@ -256,3 +260,7 @@ class RecommendationEngine:
         if tips:
             return random.choice(tips)
         return "Take a deep breath and stay present."
+
+
+recommendation_engine = RecommendationEngine()
+recommendation_service = recommendation_engine

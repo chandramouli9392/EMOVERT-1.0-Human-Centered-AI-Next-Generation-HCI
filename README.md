@@ -1197,6 +1197,110 @@ EMOVERT has been associated with a patent application provided by the project au
 
 ---
 
+# 🚀 Installation, Setup & Run Instructions
+
+### ⚙️ Prerequisites
+* Python 3.10+ (Python 3.11 recommended)
+* Node.js 18+ (Node.js 20+ recommended)
+* Windows, macOS, or Linux (Webcam and Microphone optional — full voice and screen-text fallback supported!)
+
+---
+
+### 🖥️ Terminal 1: Backend Setup & Execution (FastAPI)
+
+```powershell
+# 1. Navigate to backend directory
+cd backend
+
+# 2. Configure PowerShell Execution Policy (Windows PowerShell)
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+
+# 3. Activate Virtual Environment
+.\venv\Scripts\Activate.ps1
+
+# 4. Install dependencies
+pip install -r requirements.txt
+
+# 5. Launch FastAPI server with automatic reload
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+* **Interactive API Documentation (Swagger)**: http://localhost:8000/docs
+* **Healthcheck**: http://localhost:8000/health
+
+---
+
+### 💻 Terminal 2: Frontend Setup & Execution (Next.js 15)
+
+> 💡 **Important for Windows PowerShell users**:
+> To prevent `npm : File ... npm.ps1 cannot be loaded because running scripts is disabled on this system` (`PSSecurityException`), run using `npm.cmd` directly:
+
+```powershell
+# 1. Navigate to frontend directory
+cd frontend
+
+# Option A (Recommended for Windows PowerShell — avoids npm.ps1 execution block):
+npm.cmd install --legacy-peer-deps
+npm.cmd run dev
+
+# Option B (Using ExecutionPolicy Bypass in PowerShell):
+# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+# npm install --legacy-peer-deps
+# npm run dev
+```
+
+* **Live Application URL**: http://localhost:3000
+
+---
+
+### 🧪 Terminal 3: Automated Multimodal Fallback Test Suite
+
+EMOVERT includes an automated test suite verifying all 17 fault-tolerance, human-in-the-loop, and modality fallback scenarios:
+
+```powershell
+# Run from repository root:
+backend\venv\Scripts\python.exe -m unittest backend/tests/test_multimodal_fallback.py
+```
+
+* Result: `Ran 17 tests ... OK`
+
+---
+
+# 🛡️ Multimodal Interaction State Machine
+
+EMOVERT features a 13-stage multimodal state machine providing graceful degradation across visual, voice, and manual modalities:
+
+```text
+[IDLE] ➔ [PRESENCE_DETECTED]
+             │
+             ├─ Camera available? ➔ [CHECKING_VISUAL_INPUT] ➔ [VISUAL_ESTIMATION]
+             │                                                          │
+             │                                                          ▼
+             │                                                 [CONFIRMING_STATE]
+             │                                                          ▲
+             └─ Camera denied/no face? ➔ [VOICE_PROMPT] ➔ [VOICE_LISTENING] ─┘
+                                                │               │
+                                         STT timeout/mic denied?│
+                                                ▼               │
+                                         [MANUAL_INPUT] ────────┘
+                                                │
+                          [GENERATING_RECOMMENDATION] (AI or Local Offline Guide)
+                                                │
+                                                ▼
+                          [APPLYING_ENVIRONMENT_ACTION] (Lighting & Soundscape)
+                                                │
+                                                ▼
+                                           [COMPLETED]
+```
+
+### Key Principles:
+1. **Never Fail Silent**: If camera, microphone, or AI services disconnect, the user is never blocked. Interaction continues through screen text and manual mood buttons.
+2. **Synchronized Voice & Screen Text**: Spoken prompts are paired with readable text cards on screen from a single source of truth (`promptManager.ts`).
+3. **Human Control Guarantee**: AI facial estimates require confirmation or correction before environmental actions execute.
+4. **Environmental IoT Adaptation**: Transparently reports physical IoT connectivity vs. local ambient software emulation.
+
+---
+
 # 👨‍💻 Author
 
 <div align="center">

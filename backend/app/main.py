@@ -5,6 +5,7 @@ from contextlib import asynccontextmanager
 from app.api.v1.api import api_router
 from app.core.config import settings
 from app.db.base import engine, Base
+import app.models  # Ensure all SQLAlchemy models are registered
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -21,6 +22,7 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.BACKEND_CORS_ORIGINS,
+    allow_origin_regex=r"^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

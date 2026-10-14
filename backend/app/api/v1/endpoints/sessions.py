@@ -5,20 +5,29 @@ from datetime import datetime
 from app.db.base import get_db
 from app.core.security import get_current_user
 from app.models.session import Session as SessionModel
-from app.schemas.session import SessionResponse
+from app.schemas.session import SessionResponse, SessionEndRequest
+from typing import Optional
 
 router = APIRouter()
 
 @router.post("/start", response_model=SessionResponse)
 async def start_session(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_session = SessionModel(user_id=int(current_user["sub"]))
+    db_session = SessionModel(
+        user_id=int(current_user["sub"]),
+        start_time=datetime.utcnow()
+    )
     db.add(db_session)
     db.commit()
     db.refresh(db_session)
     return db_session
 
 @router.post("/{session_id}/end")
-async def end_session(session_id: int, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+async def end_session(
+    session_id: int,
+    request: Optional[SessionEndRequest] = None,
+    current_user: dict = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
     db_session = db.query(SessionModel).filter(
         SessionModel.id == session_id,
         SessionModel.user_id == int(current_user["sub"])
@@ -28,10 +37,12 @@ async def end_session(session_id: int, current_user: dict = Depends(get_current_
 
     db_session.end_time = datetime.utcnow()
     db_session.status = "completed"
-    if db_session.start_time:
-        db_session.duration = int((db_session.end_time - db_session.start_time).total_seconds())
+    if request and request.duration is not None and request.duration > 0:
+        db_session.duration = request.duration
+    elif db_session.start_time:
+        db_session.duration = max(0, int((db_session.end_time - db_session.start_time).total_seconds()))
     db.commit()
-    return {"message": "Session ended"}
+    return {"message": "Session ended", "duration": db_session.duration}
 
 @router.post("/{session_id}/pause")
 async def pause_session(session_id: int, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):

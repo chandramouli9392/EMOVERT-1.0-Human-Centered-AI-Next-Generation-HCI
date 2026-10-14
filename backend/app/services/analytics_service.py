@@ -74,6 +74,7 @@ class AnalyticsService:
         return {
             "total_sessions": total_sessions,
             "total_focus_hours": total_hours,
+            "total_focus_duration": total_duration,
             "average_focus": round(avg_focus, 2),
             "average_attention": round(avg_attention, 2),
             "average_drowsiness": round(avg_drowsiness, 2),
@@ -134,6 +135,7 @@ class AnalyticsService:
 
         labels = []
         focus_scores = []
+        emotions_breakdown = []
 
         for d in days:
             labels.append(d.strftime("%d %b"))
@@ -148,10 +150,21 @@ class AnalyticsService:
             else:
                 focus_scores.append(0.0)
 
+            # Emotion breakdown for this day from real DB
+            logs = db.query(EmotionLog.emotion, func.count(EmotionLog.emotion)).filter(
+                EmotionLog.user_id == user_id,
+                func.date(EmotionLog.timestamp) == d
+            ).group_by(EmotionLog.emotion).all()
+
+            day_emotions = {e[0]: e[1] for e in logs}
+            emotions_breakdown.append(day_emotions)
+
         return {
             "labels": labels,
             "focus_scores": focus_scores,
+            "emotions_breakdown": emotions_breakdown,
         }
+
 
     def get_calendar_trends(self, user_id: int, year: int, month: int, db: Session) -> List[Dict]:
         """Get calendar grid data containing daily focus summaries for a given month."""

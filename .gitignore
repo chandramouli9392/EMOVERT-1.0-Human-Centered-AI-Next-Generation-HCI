@@ -41,3 +41,8 @@ build/
 
 # Cache
 .cache/
+*.tsbuildinfo
+
+# Archives and Local Notes
+*.zip
+ERRORS_AND_FIXES.txt

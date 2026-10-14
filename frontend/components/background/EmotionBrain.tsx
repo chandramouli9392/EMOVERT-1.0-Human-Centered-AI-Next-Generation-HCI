@@ -103,14 +103,20 @@ export function EmotionBrain() {
         />
       ))}
 
-      {/* Emotion particles */}
-      {["😊", "🧠", "💡", "✨", "🎯"].map((emoji, i) => (
+      {/* Emotion particles (deterministic positions to prevent SSR hydration mismatch) */}
+      {[
+        { emoji: "😊", top: "22%", left: "28%" },
+        { emoji: "🧠", top: "25%", left: "68%" },
+        { emoji: "💡", top: "68%", left: "30%" },
+        { emoji: "✨", top: "52%", left: "72%" },
+        { emoji: "🎯", top: "36%", left: "48%" },
+      ].map((item, i) => (
         <motion.div
           key={i}
-          className="absolute text-lg"
+          className="absolute text-lg pointer-events-none"
           style={{
-            top: `${20 + Math.random() * 60}%`,
-            left: `${20 + Math.random() * 60}%`,
+            top: item.top,
+            left: item.left,
           }}
           animate={{
             y: [0, -20, 0],
@@ -124,7 +130,7 @@ export function EmotionBrain() {
             delay: i * 0.8,
           }}
         >
-          {emoji}
+          {item.emoji}
         </motion.div>
       ))}
     </div>

@@ -24,7 +24,9 @@ import {
   Info,
 } from "lucide-react";
 import { chatAPI, coachAPI } from "@/lib/api";
+import { parseServerDate } from "@/lib/utils";
 import { toast } from "react-hot-toast";
+import Link from "next/link";
 
 interface Message {
   id: string;
@@ -61,7 +63,7 @@ export default function CoachPage() {
           id: String(idx),
           role: h.sender === "coach" ? "assistant" : "user",
           content: h.message,
-          timestamp: new Date(h.timestamp)
+          timestamp: parseServerDate(h.timestamp)
         }));
         setMessages(mapped);
       })
@@ -125,7 +127,7 @@ export default function CoachPage() {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: reply.message,
-        timestamp: new Date(reply.timestamp)
+        timestamp: reply.timestamp ? parseServerDate(reply.timestamp) : new Date()
       };
       setMessages((prev) => [...prev, assistantMsg]);
     } catch (err) {
@@ -299,21 +301,21 @@ export default function CoachPage() {
                 <CardContent className="space-y-3">
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/50">Emotion</span>
-                    <Badge variant="glow">{currentEmotion?.emotion || "Happy"}</Badge>
+                    <Badge variant="glow" className="capitalize">{currentEmotion?.emotion || "None"}</Badge>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/50">Confidence</span>
                     <span className="text-sm text-white">
-                      {Math.round((currentEmotion?.confidence || 0.94) * 100)}%
+                      {currentEmotion?.confidence ? `${Math.round(currentEmotion.confidence * 100)}%` : "N/A"}
                     </span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/50">Focus Score</span>
-                    <span className="text-sm text-emovert-cyan">82/100</span>
+                    <span className="text-sm text-emovert-cyan">{Math.round(focusScore)}/100</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className="text-sm text-white/50">EQ Score</span>
-                    <span className="text-sm text-emovert-purple">72/100</span>
+                    <span className="text-sm text-emovert-purple">{Math.round(eqScore)}/100</span>
                   </div>
                 </CardContent>
               </Card>
@@ -329,33 +331,41 @@ export default function CoachPage() {
             exit={{ opacity: 0, y: -20 }}
             className="grid grid-cols-1 md:grid-cols-2 gap-6"
           >
-            {coachingInsights.map((insight, index) => (
-              <motion.div
-                key={insight.title}
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-              >
-                <Card className="h-full">
-                  <CardContent className="p-6">
-                    <div className="flex items-start gap-4">
-                      <div
-                        className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${insight.color}20` }}
-                      >
-                        <insight.icon className="w-6 h-6" style={{ color: insight.color }} />
+            {coachingInsights.length > 0 ? (
+              coachingInsights.map((insight, index) => (
+                <motion.div
+                  key={insight.title}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.1 }}
+                >
+                  <Card className="h-full">
+                    <CardContent className="p-6">
+                      <div className="flex items-start gap-4">
+                        <div
+                          className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0"
+                          style={{ backgroundColor: `${insight.color}20` }}
+                        >
+                          <insight.icon className="w-6 h-6" style={{ color: insight.color }} />
+                        </div>
+                        <div>
+                          <h3 className="text-lg font-semibold text-white mb-1">
+                            {insight.title}
+                          </h3>
+                          <p className="text-sm text-white/50">{insight.description}</p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-lg font-semibold text-white mb-1">
-                          {insight.title}
-                        </h3>
-                        <p className="text-sm text-white/50">{insight.description}</p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
-            ))}
+                    </CardContent>
+                  </Card>
+                </motion.div>
+              ))
+            ) : (
+              <div className="md:col-span-2 p-8 text-center rounded-xl bg-white/5 border border-white/5">
+                <Sparkles className="w-8 h-8 text-emovert-cyan/40 mx-auto mb-2" />
+                <p className="text-sm text-white/60 font-medium">No coaching insights yet</p>
+                <p className="text-xs text-white/30 mt-1">Start a focus session to generate personalized EMI insights</p>
+              </div>
+            )}
 
             <motion.div
               initial={{ opacity: 0, y: 20 }}
@@ -367,23 +377,20 @@ export default function CoachPage() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <TrendingUp className="w-5 h-5 text-emovert-green" />
-                    Weekly Progress
+                    Real-time Performance Metrics
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {[
-                      { label: "Focus Score", value: "82", change: "+12%", color: "#00f0ff" },
-                      { label: "EQ Score", value: "72", change: "+5%", color: "#a855f7" },
-                      { label: "Positive Ratio", value: "68%", change: "+8%", color: "#22c55e" },
-                      { label: "Session Time", value: "12.5h", change: "+2h", color: "#f97316" },
+                      { label: "Focus Score", value: `${Math.round(focusScore)}`, color: "#00f0ff" },
+                      { label: "EQ Score", value: `${Math.round(eqScore)}`, color: "#a855f7" },
+                      { label: "Distractions", value: `${useEmovertStore.getState().distractionCount}`, color: "#ef4444" },
+                      { label: "Active Time", value: `${Math.round((useEmovertStore.getState().sessionDuration || 0) / 60)}m`, color: "#f97316" },
                     ].map((stat) => (
                       <div key={stat.label} className="text-center p-4 rounded-xl bg-white/5">
                         <div className="text-2xl font-bold text-white">{stat.value}</div>
                         <div className="text-xs text-white/40 mt-1">{stat.label}</div>
-                        <div className="text-xs mt-1" style={{ color: stat.color }}>
-                          {stat.change}
-                        </div>
                       </div>
                     ))}
                   </div>

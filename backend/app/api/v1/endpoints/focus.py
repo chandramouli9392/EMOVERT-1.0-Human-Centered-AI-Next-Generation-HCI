@@ -18,12 +18,15 @@ drowsiness_detector = DrowsinessDetector()
 distraction_detector = DistractionDetector()
 
 def decode_image_to_cv2(image_data: str) -> np.ndarray:
-    """Helper to decode base64 string to cv2 frame."""
+    """Helper to decode base64 string to cv2 frame with speed optimization."""
     if "," in image_data:
         image_data = image_data.split(",")[1]
     img_bytes = base64.b64decode(image_data)
     nparr = np.frombuffer(img_bytes, np.uint8)
     frame = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if frame is not None and frame.shape[1] > 640:
+        scale = 640.0 / frame.shape[1]
+        frame = cv2.resize(frame, (640, int(frame.shape[0] * scale)), interpolation=cv2.INTER_AREA)
     return frame
 
 @router.post("/analyze")
@@ -55,34 +58,37 @@ async def analyze_focus(
     ).order_by(SessionModel.start_time.desc()).first()
 
     if active_session:
-        # Update rolling averages
-        active_session.focus_score = (active_session.focus_score + focus_score) / 2.0
-        active_session.attention_score = (active_session.attention_score + attention_score) / 2.0
-        active_session.drowsiness_score = (active_session.drowsiness_score + drowsiness["score"]) / 2.0
-        
-        # Log events
-        if drowsiness["severity"] in ["medium", "high"] and drowsiness["consecutive_frames"] == 15:
-            active_session.drowsiness_events += 1
+        try:
+            # Update rolling averages
+            active_session.focus_score = (active_session.focus_score + focus_score) / 2.0
+            active_session.attention_score = (active_session.attention_score + attention_score) / 2.0
+            active_session.drowsiness_score = (active_session.drowsiness_score + float(drowsiness.get("score", 0.0))) / 2.0
+            
+            # Log events
+            if drowsiness.get("severity") in ["medium", "high"] and drowsiness.get("consecutive_frames", 0) >= 2:
+                active_session.drowsiness_events += 1
 
-        if distraction["severity"] in ["medium", "high"] and distraction["consecutive_distracted_frames"] == 20:
-            active_session.distraction_events += 1
+            if distraction.get("severity") in ["medium", "high"] and distraction.get("consecutive_distracted_frames", 0) >= 2:
+                active_session.distraction_events += 1
 
-        db.commit()
-        db.refresh(active_session)
+            db.commit()
+            db.refresh(active_session)
+        except Exception as e:
+            db.rollback()
 
     return {
         "focus_score": focus_score,
         "attention_score": attention_score,
         "drowsiness": {
-            "score": drowsiness["score"],
-            "is_drowsy": drowsiness["is_drowsy"],
-            "severity": drowsiness["severity"]
+            "score": float(drowsiness.get("score", 0.0)),
+            "is_drowsy": bool(drowsiness.get("is_drowsy", False)),
+            "severity": str(drowsiness.get("severity", "none"))
         },
         "distraction": {
-            "score": distraction["score"],
-            "is_distracted": distraction["is_distracted"],
-            "severity": distraction["severity"],
-            "type": distraction["distraction_type"]
+            "score": float(distraction.get("score", 0.0)),
+            "is_distracted": bool(distraction.get("is_distracted", False)),
+            "severity": str(distraction.get("severity", "none")),
+            "type": str(distraction.get("distraction_type", distraction.get("type", "none")))
         },
         "session_active": active_session is not None
     }
