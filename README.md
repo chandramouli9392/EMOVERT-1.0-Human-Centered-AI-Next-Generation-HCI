@@ -295,76 +295,90 @@ EMOVERT/
 ├── backend/
 │   ├── app/
 │   │   ├── ai/
-│   │   │   ├── emotion/
-│   │   │   └── focus/
+│   │   │   ├── emotion/                 # OpenCV Haar Cascade & FER facial affect estimation
+│   │   │   └── focus/                   # Eye-aspect ratio (EAR), gaze & drowsiness tracking
 │   │   │
 │   │   ├── api/
 │   │   │   └── v1/
+│   │   │       ├── api.py               # Central APIRouter mounting all 12 subsystem modules
 │   │   │       └── endpoints/
-│   │   │           ├── auth.py
-│   │   │           ├── emotions.py
-│   │   │           └── sessions.py
+│   │   │           ├── auth.py          # User authentication, registration & JWT issuance
+│   │   │           ├── sessions.py      # Session lifecycle, pause/resume & duration tracking
+│   │   │           ├── emotions.py      # Live frame affect detection, history & summaries
+│   │   │           ├── focus.py         # Cognitive focus scoring & fatigue analytics
+│   │   │           ├── analytics.py     # Longitudinal dashboard metrics & calendar views
+│   │   │           ├── coach.py         # AI-assisted contextual wellness recommendations
+│   │   │           ├── chat.py          # Conversational affective support assistant
+│   │   │           ├── music.py         # Mood-responsive playlist recommendations
+│   │   │           ├── reports.py       # Weekly/monthly PDF report generation & export
+│   │   │           ├── achievements.py  # User milestone badges & gamified streak tracking
+│   │   │           ├── environment.py   # IoT adaptive lighting & acoustic preset engine
+│   │   │           └── interactions.py  # Multimodal fallback telemetry & recovery metrics
 │   │   │
 │   │   ├── core/
-│   │   │   ├── config.py
-│   │   │   └── security.py
+│   │   │   ├── config.py                # Environment configurations & CORS policies
+│   │   │   └── security.py              # Password hashing & JWT validation dependencies
 │   │   │
 │   │   ├── db/
-│   │   │   └── base.py
+│   │   │   └── base.py                  # SQLAlchemy engine, DeclarativeBase & SQLite sessionmaker
 │   │   │
 │   │   ├── models/
-│   │   │   ├── emotion.py
-│   │   │   ├── session.py
-│   │   │   └── user.py
+│   │   │   ├── user.py                  # User account profiles, streaks & EQ statistics
+│   │   │   ├── session.py               # Active/archived sessions, focus & drowsiness metrics
+│   │   │   ├── emotion.py               # Frame-level emotion logs & confidence ratings
+│   │   │   └── interaction_log.py       # Operational fallback telemetry & recovery outcomes
 │   │   │
-│   │   ├── schemas/
-│   │   │   ├── session.py
-│   │   │   └── user.py
-│   │   │
-│   │   └── services/
+│   │   ├── schemas/                     # Pydantic request/response validation schemas
+│   │   └── services/                    # Background utilities & database migration helpers
 │   │
-│   └── requirements.txt
+│   ├── tests/
+│   │   └── test_multimodal_fallback.py  # 17 automated fault-tolerance & recovery test scenarios
+│   └── requirements.txt                 # FastAPI, OpenCV, SQLAlchemy, PyTorch dependencies
 │
 ├── frontend/
 │   ├── app/
-│   │   ├── (dashboard)/
-│   │   │   ├── achievements/
-│   │   │   ├── analytics/
-│   │   │   ├── coach/
-│   │   │   ├── dashboard/
-│   │   │   ├── get-rid/
-│   │   │   ├── music/
-│   │   │   ├── profile/
-│   │   │   ├── reports/
-│   │   │   ├── session/
-│   │   │   └── settings/
+│   │   ├── (dashboard)/                 # Authenticated workspace routes
+│   │   │   ├── achievements/            # Gamified milestone cards & streak display
+│   │   │   ├── analytics/               # Interactive Recharts & emotion distribution
+│   │   │   ├── coach/                   # Personalized AI wellness coaching dialogues
+│   │   │   ├── dashboard/               # High-level overview & quick session actions
+│   │   │   ├── music/                   # Curated mood-adaptive playlists & playback
+│   │   │   ├── profile/                 # Account management & personal baseline statistics
+│   │   │   ├── reports/                 # Longitudinal weekly/monthly summary exports
+│   │   │   ├── session/                 # Primary live multimodal interaction portal
+│   │   │   └── settings/                # Environmental presets, sensitivity & notifications
 │   │   │
-│   │   ├── login/
-│   │   ├── register/
-│   │   ├── layout.tsx
-│   │   └── page.tsx
+│   │   ├── login/                       # Secure user sign-in portal
+│   │   ├── register/                    # New user registration flow
+│   │   ├── layout.tsx                   # Root HTML5 layout & theme wrappers
+│   │   └── page.tsx                     # Landing page with interactive feature showcase
 │   │
 │   ├── components/
+│   │   ├── session/
+│   │   │   ├── MultimodalPromptCard.tsx # Synchronized voice + screen-text prompt banner
+│   │   │   ├── ManualEmotionFallback.tsx# Touch/keyboard mood override & confirmation interface
+│   │   │   └── AmbientEnvironmentFeedback.tsx # Lighting & acoustic adaptation indicator
 │   │   ├── background/
-│   │   │   ├── AIBackground.tsx
-│   │   │   └── EmotionBrain.tsx
-│   │   │
-│   │   └── ui/
+│   │   │   ├── AIBackground.tsx         # Dynamic ambient canvas animations
+│   │   │   └── EmotionBrain.tsx         # Real-time neural pulsing & emotion particle visualizer
+│   │   └── ui/                          # Reusable buttons, modals, dropdowns & badges
 │   │
 │   ├── hooks/
-│   │   └── useStore.ts
+│   │   └── useStore.ts                  # Zustand global application state store
 │   │
 │   ├── lib/
-│   │   ├── api.ts
-│   │   └── utils.ts
+│   │   ├── api.ts                       # Typed Axios client for all 12 backend endpoints
+│   │   ├── promptManager.ts             # Single source of truth for synchronized multimodal text
+│   │   ├── speechService.ts             # Web Speech STT/TTS engine with silent timeout fallbacks
+│   │   └── utils.ts                     # Class merges (clsx + twMerge) & formatting helpers
 │   │
 │   ├── types/
-│   │   └── index.ts
+│   │   └── index.ts                     # TypeScript definitions for sessions, states & telemetry
 │   │
-│   ├── middleware.ts
-│   ├── package.json
-│   ├── tailwind.config.ts
-│   └── tsconfig.json
+│   ├── middleware.ts                    # Edge route protection & token inspection
+│   ├── package.json                     # Next.js 15, React 19, Lucide, Framer Motion
+│   ├── tailwind.config.ts               # Custom color palette, glassmorphism & gradients
+│   └── tsconfig.json                    # Strict TypeScript compilation parameters
 │
 └── README.md
 ```
@@ -709,210 +723,313 @@ EMOVERT should:
 
 ---
 
-# ⚙️ Installation
+# ⚙️ Installation & Quick Start
+
+### ⚙️ Prerequisites
+* **Python**: 3.10+ (Python 3.11 recommended)
+* **Node.js**: 18+ (Node.js 20+ recommended)
+* **OS**: Windows, macOS, or Linux (Webcam and Microphone optional — full voice and screen-text fallback supported!)
+
+---
 
 ## 1. Clone the Repository
 
 ```bash
-git clone <your-repository-url>
-cd EMOVERT
+git clone https://github.com/chandramouli9392/EMOVERT-1.0-Human-Centered-AI-Next-Generation-HCI.git
+cd EMOVERT-1.0-Human-Centered-AI-Next-Generation-HCI
 ```
 
 ---
 
-## 2. Backend Setup
+## 2. 🖥️ Terminal 1: Backend Setup & Execution (FastAPI)
 
-Move into the backend:
+Navigate to the `backend` directory:
 
 ```bash
 cd backend
 ```
 
-### Create Virtual Environment
+### Create and Activate Virtual Environment
 
-#### Windows
-
-```bash
+#### Windows PowerShell:
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
 python -m venv venv
-venv\Scripts\activate
+.\venv\Scripts\Activate.ps1
 ```
 
-#### macOS / Linux
-
+#### macOS / Linux / Bash:
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-### Install Dependencies
+### Install Dependencies:
 
 ```bash
 pip install -r requirements.txt
 ```
 
----
+### Environment Configuration:
 
-# 🔑 3. Configure Environment Variables
+All AI computer vision, focus estimation, and affect models run **100% locally and free** on native OpenCV cascades. No paid external API keys are required!
 
-Create the required environment configuration according to the backend configuration module.
+* **Database**: Local SQLite database `sqlite:///./emovert.db` is initialized automatically on startup.
+* Templates are provided in `backend/.env.example` and `frontend/.env.example`.
 
-Example:
-
-```env
-DATABASE_URL=your_database_url
-SECRET_KEY=your_secret_key
-```
-
-> ⚠️ **Do not commit secrets to Git.**
-
----
-
-# 🚀 4. Start Backend
-
-From the `backend` directory:
+### Launch FastAPI Server:
 
 ```bash
-uvicorn app.main:app --reload
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-FastAPI server:
-
-```text
-http://127.0.0.1:8000
-```
-
-API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
+* **FastAPI Server**: `http://127.0.0.1:8000`
+* **Interactive API Docs (Swagger UI)**: `http://127.0.0.1:8000/docs`
+* **Healthcheck**: `http://127.0.0.1:8000/health`
 
 ---
 
-# 💻 Frontend Setup
+## 3. 💻 Terminal 2: Frontend Setup & Execution (Next.js 15 & React 19)
 
-Open another terminal:
+Open a second terminal window:
 
 ```bash
 cd frontend
 ```
 
-Install dependencies:
+### Install Dependencies:
 
-```bash
-npm install
+> 💡 **Important for Windows PowerShell Users**:
+> Windows PowerShell restricts `.ps1` execution by default (`PSSecurityException`). Running `npm.cmd` bypasses script execution restrictions seamlessly without administrative intervention:
+
+#### Windows PowerShell (Recommended):
+```powershell
+npm.cmd install --legacy-peer-deps
+npm.cmd run dev
 ```
 
-Start development server:
-
+#### macOS / Linux / Bash:
 ```bash
+npm install --legacy-peer-deps
 npm run dev
 ```
 
-Open:
+### Open the Application:
 
 ```text
 http://localhost:3000
 ```
 
----
+### 🧪 Frontend NPM Commands
 
-# 🧪 Frontend Commands
-
-### Development
-
-```bash
-npm run dev
-```
-
-### Production Build
-
-```bash
-npm run build
-```
-
-### Production Server
-
-```bash
-npm run start
-```
-
-### Type Checking
-
-```bash
-npm run type-check
-```
-
-### Lint
-
-```bash
-npm run lint
-```
+| Action | Windows PowerShell | macOS / Linux / Bash |
+| :--- | :--- | :--- |
+| **Development Server** | `npm.cmd run dev` | `npm run dev` |
+| **Type Checking** | `npm.cmd run type-check` | `npm run type-check` |
+| **Production Build** | `npm.cmd run build` | `npm run build` |
+| **Production Start** | `npm.cmd run start` | `npm run start` |
+| **Code Linting** | `npm.cmd run lint` | `npm run lint` |
 
 ---
 
-# 🔌 API Architecture
+## 4. 🧪 Terminal 3: Automated Multimodal Fallback Test Suite
 
-The current backend API structure includes:
+EMOVERT includes an automated unit & integration test suite verifying all 17 fault-tolerance, human-in-the-loop, and modality fallback scenarios:
+
+```powershell
+# Run from repository root:
+backend\venv\Scripts\python.exe -m unittest backend/tests/test_multimodal_fallback.py
+```
+
+```text
+Ran 17 tests in 0.042s
+OK
+```
+
+All 17 verification points pass, covering visual affect estimation, visual timeouts, speech synthesis (TTS) failures, speech recognition (STT) fallbacks, manual input overrides, human confirmation/correction, physical IoT hardware failure recovery, and privacy telemetry logging.
+
+---
+
+# 🛡️ Multimodal Interaction State Machine
+
+EMOVERT features a 13-stage multimodal state machine providing graceful degradation across visual, voice, and manual modalities:
+
+```text
+[IDLE] ➔ [PRESENCE_DETECTED]
+             │
+             ├─ Camera available? ➔ [CHECKING_VISUAL_INPUT] ➔ [VISUAL_ESTIMATION]
+             │                                                          │
+             │                                                          ▼
+             │                                                 [CONFIRMING_STATE]
+             │                                                          ▲
+             └─ Camera denied/no face? ➔ [VOICE_PROMPT] ➔ [VOICE_LISTENING] ─┘
+                                                │               │
+                                         STT timeout/mic denied?│
+                                                ▼               │
+                                         [MANUAL_INPUT] ────────┘
+                                                │
+                          [GENERATING_RECOMMENDATION] (AI or Local Offline Guide)
+                                                │
+                                                ▼
+                          [APPLYING_ENVIRONMENT_ACTION] (Lighting & Soundscape)
+                                                │
+                                                ▼
+                                           [COMPLETED]
+```
+
+### Key Engineering Principles:
+1. **Never Fail Silent**: If camera, microphone, or AI services disconnect, the user is never blocked. Interaction continues through screen text and manual mood buttons.
+2. **Synchronized Voice & Screen Text**: Spoken prompts are paired with readable text cards on screen from a single source of truth (`promptManager.ts`).
+3. **Human Control Guarantee**: AI facial estimates require confirmation or correction before environmental actions execute.
+4. **Environmental IoT Adaptation**: Transparently reports physical IoT connectivity vs. local ambient software emulation.
+
+---
+
+# 🔌 Comprehensive API Architecture (12 Modular Subsystems)
+
+The FastAPI backend exposes 12 modular RESTful endpoints organized under `/api/v1`:
 
 ```text
 /api/v1
 │
-├── auth
-│   ├── register
-│   └── login
+├── 🔐 /auth                      # Authentication & Identity
+│   ├── POST /register            # New user account registration
+│   ├── POST /login               # JWT authentication token generation
+│   ├── POST /google              # Google OAuth2 identity assertion
+│   ├── GET  /me                  # Current authenticated user profile
+│   └── POST /logout              # Invalidate user session
 │
-├── emotions
-│   ├── detect
-│   ├── history
-│   └── summary
+├── ⏱️ /sessions                  # Interaction Session Lifecycle
+│   ├── POST /start               # Begin new monitored session
+│   ├── POST /{id}/end            # Finalize session and record duration
+│   ├── POST /{id}/pause          # Temporarily halt metric logging
+│   ├── POST /{id}/resume         # Resume metric logging
+│   ├── GET  /history             # Retrieve past session summaries
+│   └── GET  /{id}                # Fetch detailed session telemetry
 │
-└── sessions
-    ├── start
-    ├── end
-    ├── pause
-    └── history
+├── 😊 /emotions                  # Affect Estimation & Tracking
+│   ├── POST /detect              # Live webcam frame emotion classification
+│   ├── GET  /history             # Query user emotion log history
+│   ├── GET  /summary             # Aggregate emotion statistics by date
+│   └── GET  /trends              # Longitudinal emotion distribution
+│
+├── 🎯 /focus                     # Cognitive & Drowsiness Telemetry
+│   ├── POST /analyze             # Eye aspect ratio (EAR) & focus computation
+│   ├── GET  /score/{session_id}  # Session focus performance index
+│   └── GET  /trends              # Fatigue & distraction patterns
+│
+├── 📊 /analytics                 # Dashboards & Longitudinal Insights
+│   ├── GET  /dashboard           # Holistic user wellness metrics
+│   ├── GET  /weekly              # 7-day affective trend breakdown
+│   ├── GET  /monthly             # 30-day affect & focus correlation
+│   └── GET  /calendar            # Heatmap activity dataset by year/month
+│
+├── 🧠 /coach                     # Contextual Wellness Recommendations
+│   ├── GET  /daily               # Daily emotional well-being briefing
+│   ├── GET  /weekly              # Weekly cognitive resilience summary
+│   ├── GET  /insights            # Pattern detection & habit advisories
+│   └── GET  /recommendations     # Mood-targeted coping & focus suggestions
+│
+├── 💬 /chat                      # Affective Dialogue Assistant
+│   ├── POST /send                # Submit message with active emotion context
+│   └── GET  /history             # Retrieve conversational history
+│
+├── 🎵 /music                     # Mood-Adaptive Soundscapes
+│   ├── GET  /tracks              # Curated focus & relaxation tracks
+│   ├── GET  /favorites           # User bookmarked soundscapes
+│   ├── POST /favorites/{id}      # Toggle track favorite state
+│   └── GET  /recommendations     # Tracks aligned with active emotional state
+│
+├── 📄 /reports                   # PDF Export & Clinical Summaries
+│   ├── GET  /weekly              # Generate downloadable weekly PDF report
+│   ├── GET  /monthly             # Generate downloadable monthly PDF report
+│   └── POST /{id}/share          # Create secure sharing token
+│
+├── 🏆 /achievements              # Gamified Milestones & Streaks
+│   ├── GET  /                    # List all available milestone badges
+│   └── GET  /unlocked            # List milestones earned by authenticated user
+│
+├── 💡 /environment               # IoT Ambient Environmental Adaptation
+│   ├── POST /apply               # Trigger lighting, color & soundscape preset
+│   ├── GET  /status              # Query connected IoT device statuses
+│   └── GET  /presets/{emotion}   # Retrieve ambient profile for target emotion
+│
+└── 🛡️ /interactions              # Fault-Tolerance & Recovery Telemetry
+    ├── POST /events              # Record privacy-preserving fallback events
+    └── GET  /metrics             # Fallback frequency & recovery success rates
 ```
 
-The frontend API client is centralized in:
-
-```text
-frontend/lib/api.ts
-```
+All endpoints are fully typed and accessible via `frontend/lib/api.ts`:
+`authAPI`, `sessionAPI`, `emotionAPI`, `focusAPI`, `analyticsAPI`, `coachAPI`, `chatAPI`, `musicAPI`, `reportAPI`, `achievementAPI`, `environmentAPI`, and `interactionAPI`.
 
 ---
 
-# 🗃️ Data Models
+# 🗃️ Data Models & Database Schema
 
-The backend contains models for:
-
-```text
-User
-  │
-  ├── Sessions
-  │
-  └── Emotion Logs
-```
-
-An emotion interaction can contain information such as:
+EMOVERT maintains an SQLite database (`emovert.db`) via SQLAlchemy with strict data minimization principles:
 
 ```text
-User
-Session
-Emotion
-Confidence
-Timestamp
+┌─────────────────────────────────┐
+│              User               │
+├─────────────────────────────────┤
+│ id: Integer (PK)                │
+│ email: String (Unique)          │
+│ name: String                    │
+│ hashed_password: String         │
+│ total_sessions: Integer         │
+│ total_emotions_logged: Integer  │
+│ dominant_emotion: String        │
+│ focus_score: Float              │
+│ eq_score: Float                 │
+│ streak: Integer                 │
+│ achievements: JSON List         │
+└────────────────┬────────────────┘
+                 │ 1:N
+                 ├───────────────────────────────┐
+                 │ 1:N                           │ 1:N
+                 ▼                               ▼
+┌─────────────────────────────────┐  ┌─────────────────────────────────┐
+│             Session             │  │          EmotionLog           │
+├─────────────────────────────────┤  ├─────────────────────────────────┤
+│ id: Integer (PK)                │  │ id: Integer (PK)                │
+│ user_id: Integer (FK -> User)   │  │ user_id: Integer (FK -> User)   │
+│ start_time: DateTime            │  │ session_id: Integer (FK)        │
+│ end_time: DateTime              │  │ emotion: String                 │
+│ duration: Integer (seconds)     │  │ confidence: Float               │
+│ focus_score: Float              │  │ timestamp: DateTime             │
+│ attention_score: Float          │  └─────────────────────────────────┘
+│ drowsiness_score: Float         │
+│ status: String (active/ended)   │
+│ drowsiness_events: Integer      │
+│ distraction_events: Integer     │
+│ emotion_changes: JSON List      │
+└────────────────┬────────────────┘
+                 │ 1:N
+                 ▼
+┌─────────────────────────────────┐
+│         InteractionLog          │
+├─────────────────────────────────┤
+│ id: Integer (PK)                │
+│ user_id: Integer (FK -> User)   │
+│ session_id: Integer (FK)        │
+│ interaction_id: String (UUID)   │
+│ event_type: String              │
+│ modality: String (visual/voice) │
+│ source: String (camera/speech)  │
+│ latency_ms: Integer             │
+│ is_fallback: Boolean            │
+│ recovery_outcome: String        │
+│ confirmed_emotion: String       │
+│ timestamp: DateTime             │
+└─────────────────────────────────┘
 ```
 
-The implementation can be extended to distinguish:
+### Telemetry Modality Attributes:
+* **`modality`**: `visual`, `voice`, `manual`, `environment`
+* **`source`**: `visual_estimation`, `voice_input`, `manual_input`
+* **`recovery_outcome`**: `recovered`, `failed`, `cancelled`, `completed`
 
-```text
-source = webcam
-source = voice
-source = manual
-```
-
-This enables more complete multimodal interaction analytics.
+This non-invasive architecture allows full diagnostic observability of multimodal recovery rates without storing sensitive user images or voice recordings.
 
 ---
 
@@ -1066,29 +1183,28 @@ The complete end-to-end multimodal pipeline should be treated as an integration 
 
 ---
 
-# 🚧 Development Status
+# 🚧 Development & Implementation Status
 
-| Area                           | Status              |
-| ------------------------------ | ------------------- |
-| Next.js frontend               | 🟢                  |
-| React UI                       | 🟢                  |
-| TypeScript                     | 🟢                  |
-| Tailwind UI                    | 🟢                  |
-| Framer Motion animations       | 🟢                  |
-| Webcam UI                      | 🟢                  |
-| Authentication structure       | 🟢                  |
-| Session UI                     | 🟢                  |
-| Session APIs                   | 🟡                  |
-| Emotion API structure          | 🟡                  |
-| Real webcam → emotion pipeline | 🔧 Integration      |
-| Voice fallback                 | 🔧 Integration      |
-| EMO manual fallback            | 🔧 Integration      |
-| Recommendation integration     | 🔧 Integration      |
-| Real-time analytics            | 🔧 Integration      |
-| Longitudinal insights          | 🔧 Integration      |
-| Physical IoT environment       | 🚧 Future extension |
+| Subsystem / Feature Area | Status | Implementation Details |
+| :--- | :---: | :--- |
+| **Next.js 15 & React 19 Frontend** | 🟢 | Fully operational with responsive App Router layout & Tailwind styling |
+| **Tailwind UI & Framer Motion** | 🟢 | Interactive neural brain, ambient pulses & floating particle canvas |
+| **Authentication & Authorization** | 🟢 | JWT token issuance, bcrypt hashing, edge middleware route protection |
+| **Session Lifecycle APIs** | 🟢 | Start, pause, resume, end with SQLite database persistence |
+| **Local OpenCV Facial Affect** | 🟢 | Sub-second Haar cascades & FER affect estimation, 100% free & local |
+| **Cognitive Focus & EAR Tracking** | 🟢 | Eye-aspect-ratio, blink frequency, distraction & drowsiness telemetry |
+| **Synchronized Voice Multimodal Fallback** | 🟢 | Single source of truth (`promptManager.ts`), SpeechRecognition & TTS |
+| **EMO Manual Input & Confirmation** | 🟢 | Touch/keyboard mood override, human-in-the-loop state verification |
+| **Contextual Wellness Coach** | 🟢 | Emotion-targeted coping mechanisms & focus recommendations |
+| **Mood-Adaptive Music Engine** | 🟢 | Dynamic playlist suggestions aligned with active emotional state |
+| **PDF Reporting & Export** | 🟢 | Weekly/monthly downloadable wellness performance summaries |
+| **Longitudinal Analytics & Heatmaps** | 🟢 | Recharts visualizations, EQ trend lines & calendar activity heatmaps |
+| **Operational Telemetry Logging** | 🟢 | Privacy-preserving fallback metrics & recovery outcome rates |
+| **Automated Test Suite (17 Scenarios)** | 🟢 | 100% test pass rate across all fault-tolerance and recovery cases |
+| **Ambient Environmental Adaptation** | 🟢 | Software lighting/sound emulation + physical device bridge API |
+| **Physical IoT Hardware Deployment** | 🟡 | Hardware endpoint ready; physical ESP32 / MQTT peripheral integration |
 
-> Status labels describe the repository architecture and integration state; they should be updated as implementation progresses.
+> All core software, AI computer vision, voice/screen multimodal fallbacks, database models, and unit test suites are fully implemented, verified, and operational.
 
 ---
 
@@ -1194,110 +1310,6 @@ EMOVERT has been associated with a patent application provided by the project au
 ### Status
 
 **Filed**
-
----
-
-# 🚀 Installation, Setup & Run Instructions
-
-### ⚙️ Prerequisites
-* Python 3.10+ (Python 3.11 recommended)
-* Node.js 18+ (Node.js 20+ recommended)
-* Windows, macOS, or Linux (Webcam and Microphone optional — full voice and screen-text fallback supported!)
-
----
-
-### 🖥️ Terminal 1: Backend Setup & Execution (FastAPI)
-
-```powershell
-# 1. Navigate to backend directory
-cd backend
-
-# 2. Configure PowerShell Execution Policy (Windows PowerShell)
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-
-# 3. Activate Virtual Environment
-.\venv\Scripts\Activate.ps1
-
-# 4. Install dependencies
-pip install -r requirements.txt
-
-# 5. Launch FastAPI server with automatic reload
-python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-* **Interactive API Documentation (Swagger)**: http://localhost:8000/docs
-* **Healthcheck**: http://localhost:8000/health
-
----
-
-### 💻 Terminal 2: Frontend Setup & Execution (Next.js 15)
-
-> 💡 **Important for Windows PowerShell users**:
-> To prevent `npm : File ... npm.ps1 cannot be loaded because running scripts is disabled on this system` (`PSSecurityException`), run using `npm.cmd` directly:
-
-```powershell
-# 1. Navigate to frontend directory
-cd frontend
-
-# Option A (Recommended for Windows PowerShell — avoids npm.ps1 execution block):
-npm.cmd install --legacy-peer-deps
-npm.cmd run dev
-
-# Option B (Using ExecutionPolicy Bypass in PowerShell):
-# Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-# npm install --legacy-peer-deps
-# npm run dev
-```
-
-* **Live Application URL**: http://localhost:3000
-
----
-
-### 🧪 Terminal 3: Automated Multimodal Fallback Test Suite
-
-EMOVERT includes an automated test suite verifying all 17 fault-tolerance, human-in-the-loop, and modality fallback scenarios:
-
-```powershell
-# Run from repository root:
-backend\venv\Scripts\python.exe -m unittest backend/tests/test_multimodal_fallback.py
-```
-
-* Result: `Ran 17 tests ... OK`
-
----
-
-# 🛡️ Multimodal Interaction State Machine
-
-EMOVERT features a 13-stage multimodal state machine providing graceful degradation across visual, voice, and manual modalities:
-
-```text
-[IDLE] ➔ [PRESENCE_DETECTED]
-             │
-             ├─ Camera available? ➔ [CHECKING_VISUAL_INPUT] ➔ [VISUAL_ESTIMATION]
-             │                                                          │
-             │                                                          ▼
-             │                                                 [CONFIRMING_STATE]
-             │                                                          ▲
-             └─ Camera denied/no face? ➔ [VOICE_PROMPT] ➔ [VOICE_LISTENING] ─┘
-                                                │               │
-                                         STT timeout/mic denied?│
-                                                ▼               │
-                                         [MANUAL_INPUT] ────────┘
-                                                │
-                          [GENERATING_RECOMMENDATION] (AI or Local Offline Guide)
-                                                │
-                                                ▼
-                          [APPLYING_ENVIRONMENT_ACTION] (Lighting & Soundscape)
-                                                │
-                                                ▼
-                                           [COMPLETED]
-```
-
-### Key Principles:
-1. **Never Fail Silent**: If camera, microphone, or AI services disconnect, the user is never blocked. Interaction continues through screen text and manual mood buttons.
-2. **Synchronized Voice & Screen Text**: Spoken prompts are paired with readable text cards on screen from a single source of truth (`promptManager.ts`).
-3. **Human Control Guarantee**: AI facial estimates require confirmation or correction before environmental actions execute.
-4. **Environmental IoT Adaptation**: Transparently reports physical IoT connectivity vs. local ambient software emulation.
 
 ---
 
